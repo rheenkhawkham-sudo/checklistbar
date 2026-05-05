@@ -4,7 +4,8 @@ interface Props {
 }
 
 export function CircularProgress({ percent, size = 160 }: Props) {
-  const stroke = 14;
+  const stroke = size < 120 ? 9 : 14;
+  const isSmall = size < 120;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (percent / 100) * c;
