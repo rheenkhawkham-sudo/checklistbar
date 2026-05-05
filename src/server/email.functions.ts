@@ -46,24 +46,33 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
     if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured");
 
-    const total = data.daily.length + data.monthly.length;
-    const done = [...data.daily, ...data.monthly].filter((t) => t.done).length;
+    const includeDaily = data.mode === "daily" || data.mode === "all";
+    const includeMonthly = data.mode === "monthly" || data.mode === "all";
+    const scoped = [
+      ...(includeDaily ? data.daily : []),
+      ...(includeMonthly ? data.monthly : []),
+    ];
+    const total = scoped.length;
+    const done = scoped.filter((t) => t.done).length;
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+    const modeLabel =
+      data.mode === "daily" ? "Daily" : data.mode === "monthly" ? "Monthly" : "Daily + Monthly";
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#222">
-        <h2 style="margin:0 0 4px">Bar Checklist Report</h2>
+        <h2 style="margin:0 0 4px">Bar Checklist Report — ${escapeHtml(modeLabel)}</h2>
         <p style="color:#666;margin:0 0 16px">Submitted ${escapeHtml(now)} (Asia/Bangkok)</p>
         <table style="width:100%;font-size:14px;margin-bottom:16px">
           <tr><td style="padding:4px 0"><b>Date:</b></td><td>${escapeHtml(data.reportDate)}</td></tr>
           <tr><td style="padding:4px 0"><b>Outlet:</b></td><td>${escapeHtml(data.outlet)}</td></tr>
           <tr><td style="padding:4px 0"><b>Signed by:</b></td><td>${escapeHtml(data.signedBy)}</td></tr>
+          <tr><td style="padding:4px 0"><b>Type:</b></td><td>${escapeHtml(modeLabel)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
         </table>
-        ${renderList("Daily Tasks", data.daily)}
-        ${renderList("Monthly Tasks", data.monthly)}
+        ${includeDaily ? renderList("Daily Tasks", data.daily) : ""}
+        ${includeMonthly ? renderList("Monthly Tasks", data.monthly) : ""}
       </div>
     `;
 
@@ -77,7 +86,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
       body: JSON.stringify({
         from: "Bar Checklist <onboarding@resend.dev>",
         to: [RECIPIENT],
-        subject: `Bar Checklist — ${data.outlet} — ${data.signedBy} (${pct}%)`,
+        subject: `Bar Checklist (${modeLabel}) — ${data.outlet} — ${data.signedBy} (${pct}%)`,
         html,
       }),
     });
