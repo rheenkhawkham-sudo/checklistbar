@@ -56,6 +56,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
         <h2 style="margin:0 0 4px">Bar Checklist Report</h2>
         <p style="color:#666;margin:0 0 16px">Submitted ${escapeHtml(now)} (Asia/Bangkok)</p>
         <table style="width:100%;font-size:14px;margin-bottom:16px">
+          <tr><td style="padding:4px 0"><b>Date:</b></td><td>${escapeHtml(data.reportDate)}</td></tr>
           <tr><td style="padding:4px 0"><b>Outlet:</b></td><td>${escapeHtml(data.outlet)}</td></tr>
           <tr><td style="padding:4px 0"><b>Signed by:</b></td><td>${escapeHtml(data.signedBy)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
