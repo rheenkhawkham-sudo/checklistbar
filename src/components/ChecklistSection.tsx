@@ -81,10 +81,14 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
         {tasks.map((t) => (
           <li
             key={t.id}
-            className="group rounded-lg border bg-background px-3 py-2 hover:bg-accent/40 transition-colors"
+            className="group rounded-lg border bg-background px-3 py-2 hover:bg-accent/40 transition-colors space-y-2"
           >
-            <div className="flex items-center gap-3">
-              <Checkbox checked={t.done} onCheckedChange={() => toggle(t.id)} className="h-5 w-5" />
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={t.done}
+                onCheckedChange={() => toggle(t.id)}
+                className="h-5 w-5 mt-0.5 shrink-0"
+              />
               {editingId === t.id ? (
                 <>
                   <Input
@@ -107,24 +111,16 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
               ) : (
                 <>
                   <span
-                    className={`min-w-0 flex-shrink text-sm break-words ${
+                    className={`flex-1 min-w-0 text-sm break-words line-clamp-2 ${
                       t.done ? "line-through text-muted-foreground" : ""
                     }`}
-                    style={{ flexBasis: "40%" }}
                   >
                     {t.text}
                   </span>
-                  <Input
-                    placeholder="Remark..."
-                    value={t.remark ?? ""}
-                    onChange={(e) => setRemark(t.id, e.target.value)}
-                    maxLength={300}
-                    className="h-9 flex-1 min-w-0 text-sm"
-                  />
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100"
+                    className="opacity-0 group-hover:opacity-100 shrink-0"
                     onClick={() => startEdit(t)}
                     aria-label="Edit"
                   >
@@ -133,7 +129,7 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 text-destructive"
+                    className="opacity-0 group-hover:opacity-100 text-destructive shrink-0"
                     onClick={() => remove(t.id)}
                     aria-label="Delete"
                   >
@@ -142,6 +138,15 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
                 </>
               )}
             </div>
+            {editingId !== t.id && (
+              <Input
+                placeholder="Remark..."
+                value={t.remark ?? ""}
+                onChange={(e) => setRemark(t.id, e.target.value)}
+                maxLength={300}
+                className="h-9 w-full text-sm"
+              />
+            )}
           </li>
         ))}
       </ul>
