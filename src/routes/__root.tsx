@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Checklist Bar" },
+      { name: "description", content: "Daily Bar Check is a web application for managing daily and monthly bar checklists." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Checklist Bar" },
+      { property: "og:description", content: "Daily Bar Check is a web application for managing daily and monthly bar checklists." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Checklist Bar" },
+      { name: "twitter:description", content: "Daily Bar Check is a web application for managing daily and monthly bar checklists." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/OYkIeeKMASRrwgNpkFIEe528Pqq1/social-images/social-1777974115708-IMG_0829.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/OYkIeeKMASRrwgNpkFIEe528Pqq1/social-images/social-1777974115708-IMG_0829.webp" },
     ],
     links: [
       {
@@ -52,11 +56,11 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
-      <body className="bg-background text-foreground">
+      <body>
         {children}
         <Scripts />
       </body>
