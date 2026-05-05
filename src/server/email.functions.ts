@@ -11,6 +11,7 @@ const TaskSchema = z.object({
 const PayloadSchema = z.object({
   signedBy: z.string().trim().min(1).max(100),
   outlet: z.string().trim().min(1).max(100),
+  reportDate: z.string().trim().min(1).max(40),
   daily: z.array(TaskSchema).max(200),
   monthly: z.array(TaskSchema).max(200),
 });

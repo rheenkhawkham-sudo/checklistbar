@@ -47,6 +47,7 @@ function Index() {
   const [monthly, setMonthly] = useState<Task[]>(DEFAULT_MONTHLY);
   const [outlet, setOutlet] = useState("");
   const [signedBy, setSignedBy] = useState("");
+  const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
@@ -78,7 +79,7 @@ function Index() {
     if (!signedBy.trim()) return toast.error("Please sign with your name before submitting");
     setSubmitting(true);
     try {
-      const res = await send({ data: { outlet, signedBy, daily, monthly } });
+      const res = await send({ data: { outlet, signedBy, reportDate, daily, monthly } });
       toast.success(`Submitted! Report sent to ${res.recipient}`);
       setSignedBy("");
     } catch (e) {
@@ -114,7 +115,7 @@ function Index() {
         </section>
 
         <div className="grid gap-6 mb-8">
-          <div className="grid gap-4 sm:grid-cols-2 rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border bg-card p-5 shadow-sm">
             <div className="space-y-2">
               <Label htmlFor="outlet">Outlet</Label>
               <Input
@@ -133,6 +134,15 @@ function Index() {
                 value={signedBy}
                 onChange={(e) => setSignedBy(e.target.value)}
                 maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reportDate">Date</Label>
+              <Input
+                id="reportDate"
+                type="date"
+                value={reportDate}
+                onChange={(e) => setReportDate(e.target.value)}
               />
             </div>
           </div>
