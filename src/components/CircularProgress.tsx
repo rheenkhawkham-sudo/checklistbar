@@ -4,7 +4,8 @@ interface Props {
 }
 
 export function CircularProgress({ percent, size = 160 }: Props) {
-  const stroke = 14;
+  const stroke = size < 120 ? 9 : 14;
+  const isSmall = size < 120;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (percent / 100) * c;
@@ -33,8 +34,8 @@ export function CircularProgress({ percent, size = 160 }: Props) {
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold tabular-nums">{percent}%</span>
-        <span className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Complete</span>
+        <span className={isSmall ? "text-lg font-bold tabular-nums" : "text-4xl font-bold tabular-nums"}>{percent}%</span>
+        {!isSmall && <span className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Complete</span>}
       </div>
     </div>
   );

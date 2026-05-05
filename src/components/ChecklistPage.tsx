@@ -28,6 +28,12 @@ const DEFAULT_MONTHLY: Task[] = [
   { id: "m5", text: "Restock garnish and condiments", done: false },
 ];
 
+const KEY_DAILY = "bar.daily";
+const KEY_MONTHLY = "bar.monthly";
+const KEY_OUTLET = "bar.outlet";
+const KEY_SIGNED = "bar.signedBy";
+const KEY_DATE = "bar.reportDate";
+
 function loadStored<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -38,17 +44,22 @@ function loadStored<T>(key: string, fallback: T): T {
   }
 }
 
+function pct(tasks: Task[]) {
+  const t = tasks.length;
+  const d = tasks.filter((x) => x.done).length;
+  return { percent: t === 0 ? 0 : Math.round((d / t) * 100), done: d, total: t };
+}
+
 interface Props {
   mode: "daily" | "monthly";
 }
 
 export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
-  const storageKey = isDaily ? "bar.daily" : "bar.monthly";
-  const defaults = isDaily ? DEFAULT_DAILY : DEFAULT_MONTHLY;
   const title = isDaily ? "Daily Tasks" : "Monthly Tasks";
 
-  const [tasks, setTasks] = useState<Task[]>(defaults);
+  const [dailyTasks, setDailyTasks] = useState<Task[]>(DEFAULT_DAILY);
+  const [monthlyTasks, setMonthlyTasks] = useState<Task[]>(DEFAULT_MONTHLY);
   const [outlet, setOutlet] = useState("");
   const [signedBy, setSignedBy] = useState("");
   const [reportDate, setReportDate] = useState(() =>
@@ -57,23 +68,51 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  useEffect(() => {
-    setTasks(loadStored(storageKey, defaults));
-    setOutlet(loadStored<string>("bar.outlet", ""));
-  }, [storageKey]);
+  const tasks = isDaily ? dailyTasks : monthlyTasks;
+  const setTasks = isDaily ? setDailyTasks : setMonthlyTasks;
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(tasks));
-  }, [storageKey, tasks]);
+    setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+    setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
+    setOutlet(loadStored<string>(KEY_OUTLET, ""));
+    setSignedBy(loadStored<string>(KEY_SIGNED, ""));
+    const storedDate = loadStored<string>(KEY_DATE, "");
+    if (storedDate) setReportDate(storedDate);
+
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === KEY_DAILY) setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+      if (e.key === KEY_MONTHLY) setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
+      if (e.key === KEY_OUTLET) setOutlet(loadStored<string>(KEY_OUTLET, ""));
+      if (e.key === KEY_SIGNED) setSignedBy(loadStored<string>(KEY_SIGNED, ""));
+      if (e.key === KEY_DATE) {
+        const v = loadStored<string>(KEY_DATE, "");
+        if (v) setReportDate(v);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem("bar.outlet", JSON.stringify(outlet));
+    localStorage.setItem(KEY_DAILY, JSON.stringify(dailyTasks));
+  }, [dailyTasks]);
+  useEffect(() => {
+    localStorage.setItem(KEY_MONTHLY, JSON.stringify(monthlyTasks));
+  }, [monthlyTasks]);
+  useEffect(() => {
+    localStorage.setItem(KEY_OUTLET, JSON.stringify(outlet));
   }, [outlet]);
+  useEffect(() => {
+    localStorage.setItem(KEY_SIGNED, JSON.stringify(signedBy));
+  }, [signedBy]);
+  useEffect(() => {
+    localStorage.setItem(KEY_DATE, JSON.stringify(reportDate));
+  }, [reportDate]);
 
-  const { percent, done, total } = useMemo(() => {
-    const t = tasks.length;
-    const d = tasks.filter((x) => x.done).length;
-    return { percent: t === 0 ? 0 : Math.round((d / t) * 100), done: d, total: t };
-  }, [tasks]);
+  const dailyP = useMemo(() => pct(dailyTasks), [dailyTasks]);
+  const monthlyP = useMemo(() => pct(monthlyTasks), [monthlyTasks]);
+  const combinedP = useMemo(() => pct([...dailyTasks, ...monthlyTasks]), [dailyTasks, monthlyTasks]);
 
   const onSubmit = async () => {
     if (!outlet.trim()) return toast.error("Please enter the outlet name");
@@ -86,9 +125,9 @@ export function ChecklistPage({ mode }: Props) {
           outlet,
           signedBy,
           reportDate,
-          mode,
-          daily: isDaily ? tasks : [],
-          monthly: isDaily ? [] : tasks,
+          mode: "all",
+          daily: dailyTasks,
+          monthly: monthlyTasks,
         },
       });
       toast.success(`Submitted! Report sent to ${res.recipient}`);
@@ -139,10 +178,25 @@ export function ChecklistPage({ mode }: Props) {
         </nav>
 
         <section className="flex flex-col items-center justify-center mb-8 rounded-3xl border bg-card p-8 shadow-sm">
-          <CircularProgress percent={percent} />
+          <CircularProgress percent={combinedP.percent} />
           <p className="mt-4 text-sm text-muted-foreground tabular-nums">
-            {done} of {total} {isDaily ? "daily" : "monthly"} tasks completed
+            Overall: {combinedP.done} of {combinedP.total} tasks completed
           </p>
+
+          <div className="mt-8 grid grid-cols-2 gap-6 w-full max-w-sm">
+            <div className="flex flex-col items-center">
+              <CircularProgress percent={dailyP.percent} size={100} />
+              <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                Daily {dailyP.done}/{dailyP.total}
+              </p>
+            </div>
+            <div className="flex flex-col items-center">
+              <CircularProgress percent={monthlyP.percent} size={100} />
+              <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                Monthly {monthlyP.done}/{monthlyP.total}
+              </p>
+            </div>
+          </div>
         </section>
 
         <div className="grid gap-6 mb-8">
