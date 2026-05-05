@@ -107,9 +107,10 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
               ) : (
                 <>
                   <span
-                    className={`flex-1 text-sm ${
+                    className={`min-w-0 flex-shrink text-sm break-words ${
                       t.done ? "line-through text-muted-foreground" : ""
                     }`}
+                    style={{ flexBasis: "40%" }}
                   >
                     {t.text}
                   </span>
@@ -118,7 +119,7 @@ export function ChecklistSection({ title, tasks, onChange }: Props) {
                     value={t.remark ?? ""}
                     onChange={(e) => setRemark(t.id, e.target.value)}
                     maxLength={300}
-                    className="h-8 w-32 sm:w-48 text-xs"
+                    className="h-9 flex-1 min-w-0 text-sm"
                   />
                   <Button
                     size="icon"
