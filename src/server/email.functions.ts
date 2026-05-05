@@ -5,6 +5,7 @@ const TaskSchema = z.object({
   id: z.string(),
   text: z.string().max(300),
   done: z.boolean(),
+  remark: z.string().max(300).optional().default(""),
 });
 
 const PayloadSchema = z.object({
@@ -16,19 +17,19 @@ const PayloadSchema = z.object({
 
 const RECIPIENT = "rheen.khawkham@gmail.com";
 
-function renderList(title: string, tasks: { text: string; done: boolean }[]) {
+function renderList(title: string, tasks: { text: string; done: boolean; remark?: string }[]) {
   if (tasks.length === 0) return `<h3>${title}</h3><p style="color:#888">No tasks</p>`;
   const rows = tasks
     .map(
       (t) =>
-        `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;width:30px">${
+        `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;width:30px;vertical-align:top">${
           t.done ? "✅" : "⬜"
         }</td><td style="padding:6px 10px;border-bottom:1px solid #eee;${
           t.done ? "text-decoration:line-through;color:#888" : ""
-        }">${escapeHtml(t.text)}</td></tr>`
+        }">${escapeHtml(t.text)}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:#555;font-style:italic;vertical-align:top">${escapeHtml(t.remark || "")}</td></tr>`
     )
     .join("");
-  return `<h3 style="margin:20px 0 8px">${title}</h3><table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>`;
+  return `<h3 style="margin:20px 0 8px">${title}</h3><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th></th><th style="text-align:left;padding:6px 10px;color:#666;font-weight:600;border-bottom:2px solid #ddd">Task</th><th style="text-align:left;padding:6px 10px;color:#666;font-weight:600;border-bottom:2px solid #ddd">Remark</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function escapeHtml(s: string) {
