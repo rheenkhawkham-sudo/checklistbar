@@ -34,8 +34,8 @@ export function CircularProgress({ percent, size = 160 }: Props) {
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold tabular-nums">{percent}%</span>
-        <span className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Complete</span>
+        <span className={isSmall ? "text-lg font-bold tabular-nums" : "text-4xl font-bold tabular-nums"}>{percent}%</span>
+        {!isSmall && <span className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Complete</span>}
       </div>
     </div>
   );
