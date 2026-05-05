@@ -1,0 +1,41 @@
+interface Props {
+  percent: number;
+  size?: number;
+}
+
+export function CircularProgress({ percent, size = 160 }: Props) {
+  const stroke = 14;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (percent / 100) * c;
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="hsl(var(--muted) / 1)" strokeWidth={stroke} fill="none" className="opacity-30" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="url(#grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+        />
+        <defs>
+          <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="oklch(0.72 0.19 145)" />
+            <stop offset="100%" stopColor="oklch(0.55 0.22 155)" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-4xl font-bold tabular-nums">{percent}%</span>
+        <span className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Complete</span>
+      </div>
+    </div>
+  );
+}
