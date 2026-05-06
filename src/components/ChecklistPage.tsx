@@ -146,8 +146,12 @@ export function ChecklistPage({ mode }: Props) {
           outlet,
           signedBy,
           reportDate,
+          openTime,
+          closeTime,
           mode: "all",
-          daily: dailyAll,
+          open: openTasks,
+          close: closeTasks,
+          daily: [],
           monthly: monthlyTasks,
         },
       });
