@@ -15,9 +15,17 @@ interface Props {
   title: string;
   tasks: Task[];
   onChange: (tasks: Task[]) => void;
+  variant?: "default" | "open" | "close";
+  headerExtra?: React.ReactNode;
 }
 
-export function ChecklistSection({ title, tasks, onChange }: Props) {
+const VARIANT_CLASSES: Record<NonNullable<Props["variant"]>, string> = {
+  default: "border bg-card",
+  open: "border-emerald-500/50 bg-emerald-500/5",
+  close: "border-amber-500/50 bg-amber-500/5",
+};
+
+export function ChecklistSection({ title, tasks, onChange, variant = "default", headerExtra }: Props) {
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
