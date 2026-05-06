@@ -98,6 +98,8 @@ export function ChecklistPage({ mode }: Props) {
         const v = loadStored<string>(KEY_DATE, "");
         if (v) setReportDate(v);
       }
+      if (e.key === KEY_OPEN_TIME) setOpenTime(loadStored<string>(KEY_OPEN_TIME, ""));
+      if (e.key === KEY_CLOSE_TIME) setCloseTime(loadStored<string>(KEY_CLOSE_TIME, ""));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
