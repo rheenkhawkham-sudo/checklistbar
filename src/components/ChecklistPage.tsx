@@ -207,39 +207,71 @@ export function ChecklistPage({ mode }: Props) {
         </section>
 
         <div className="grid gap-6 mb-8">
-          <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="space-y-2">
-              <Label htmlFor="outlet">Outlet</Label>
-              <Input
-                id="outlet"
-                placeholder="e.g. Sky Bar – Sukhumvit"
-                value={outlet}
-                onChange={(e) => setOutlet(e.target.value)}
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signedBy">Signed by</Label>
-              <Input
-                id="signedBy"
-                placeholder="Your full name"
-                value={signedBy}
-                onChange={(e) => setSignedBy(e.target.value)}
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reportDate">Date</Label>
-              <Input
-                id="reportDate"
-                type="date"
-                value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
-              />
-            </div>
-          </div>
+          {(() => {
+            const metaFields = (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="outlet">Outlet</Label>
+                  <Input
+                    id="outlet"
+                    placeholder="e.g. Sky Bar – Sukhumvit"
+                    value={outlet}
+                    onChange={(e) => setOutlet(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signedBy">Signed by</Label>
+                  <Input
+                    id="signedBy"
+                    placeholder="Your full name"
+                    value={signedBy}
+                    onChange={(e) => setSignedBy(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reportDate">Date</Label>
+                  <Input
+                    id="reportDate"
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            );
 
-          <ChecklistSection title={title} tasks={tasks} onChange={setTasks} />
+            if (isDaily) {
+              return (
+                <>
+                  <ChecklistSection
+                    title="Open Bar"
+                    tasks={openTasks}
+                    onChange={setOpenTasks}
+                    variant="open"
+                  />
+                  <ChecklistSection
+                    title="Close Bar"
+                    tasks={closeTasks}
+                    onChange={setCloseTasks}
+                    variant="close"
+                    headerExtra={metaFields}
+                  />
+                </>
+              );
+            }
+            return (
+              <>
+                <div className="rounded-2xl border bg-card p-5 shadow-sm">{metaFields}</div>
+                <ChecklistSection
+                  title="Monthly Tasks"
+                  tasks={monthlyTasks}
+                  onChange={setMonthlyTasks}
+                />
+              </>
+            );
+          })()}
         </div>
 
         <div className="sticky bottom-4 z-10">
