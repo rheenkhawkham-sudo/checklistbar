@@ -61,13 +61,15 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
   const done = tasks.filter((t) => t.done).length;
 
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-sm">
+    <div className={`rounded-2xl border p-5 shadow-sm ${VARIANT_CLASSES[variant]}`}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">{title}</h2>
         <span className="text-sm text-muted-foreground tabular-nums">
           {done} / {tasks.length}
         </span>
       </div>
+
+      {headerExtra && <div className="mb-4">{headerExtra}</div>}
 
       <div className="flex gap-2 mb-4">
         <Input
