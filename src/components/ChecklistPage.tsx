@@ -226,12 +226,17 @@ export function ChecklistPage({ mode }: Props) {
 
         <div className="grid gap-6 mb-8">
           {(() => {
-            const metaFields = (
-              <div className="grid gap-4 sm:grid-cols-3">
+            const buildMeta = (
+              timeLabel: string,
+              timeId: string,
+              timeValue: string,
+              setTime: (v: string) => void
+            ) => (
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="outlet">Outlet</Label>
+                  <Label htmlFor={`outlet-${timeId}`}>Outlet</Label>
                   <Input
-                    id="outlet"
+                    id={`outlet-${timeId}`}
                     placeholder="e.g. Sky Bar – Sukhumvit"
                     value={outlet}
                     onChange={(e) => setOutlet(e.target.value)}
@@ -239,9 +244,9 @@ export function ChecklistPage({ mode }: Props) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signedBy">Signed by</Label>
+                  <Label htmlFor={`signedBy-${timeId}`}>Signed by</Label>
                   <Input
-                    id="signedBy"
+                    id={`signedBy-${timeId}`}
                     placeholder="Your full name"
                     value={signedBy}
                     onChange={(e) => setSignedBy(e.target.value)}
@@ -249,12 +254,21 @@ export function ChecklistPage({ mode }: Props) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reportDate">Date</Label>
+                  <Label htmlFor={`reportDate-${timeId}`}>Date</Label>
                   <Input
-                    id="reportDate"
+                    id={`reportDate-${timeId}`}
                     type="date"
                     value={reportDate}
                     onChange={(e) => setReportDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={timeId}>{timeLabel}</Label>
+                  <Input
+                    id={timeId}
+                    type="time"
+                    value={timeValue}
+                    onChange={(e) => setTime(e.target.value)}
                   />
                 </div>
               </div>
@@ -268,20 +282,53 @@ export function ChecklistPage({ mode }: Props) {
                     tasks={openTasks}
                     onChange={setOpenTasks}
                     variant="open"
+                    headerExtra={buildMeta("Open time", "openTime", openTime, setOpenTime)}
                   />
                   <ChecklistSection
                     title="Close Bar"
                     tasks={closeTasks}
                     onChange={setCloseTasks}
                     variant="close"
-                    headerExtra={metaFields}
+                    headerExtra={buildMeta("Close time", "closeTime", closeTime, setCloseTime)}
                   />
                 </>
               );
             }
             return (
               <>
-                <div className="rounded-2xl border bg-card p-5 shadow-sm">{metaFields}</div>
+                <div className="rounded-2xl border bg-card p-5 shadow-sm">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="outlet-m">Outlet</Label>
+                      <Input
+                        id="outlet-m"
+                        placeholder="e.g. Sky Bar – Sukhumvit"
+                        value={outlet}
+                        onChange={(e) => setOutlet(e.target.value)}
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signedBy-m">Signed by</Label>
+                      <Input
+                        id="signedBy-m"
+                        placeholder="Your full name"
+                        value={signedBy}
+                        onChange={(e) => setSignedBy(e.target.value)}
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reportDate-m">Date</Label>
+                      <Input
+                        id="reportDate-m"
+                        type="date"
+                        value={reportDate}
+                        onChange={(e) => setReportDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
                 <ChecklistSection
                   title="Monthly Tasks"
                   tasks={monthlyTasks}
