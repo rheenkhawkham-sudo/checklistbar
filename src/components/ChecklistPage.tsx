@@ -60,9 +60,9 @@ interface Props {
 
 export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
-  const title = isDaily ? "Daily Tasks" : "Monthly Tasks";
 
-  const [dailyTasks, setDailyTasks] = useState<Task[]>(DEFAULT_DAILY);
+  const [openTasks, setOpenTasks] = useState<Task[]>(DEFAULT_OPEN);
+  const [closeTasks, setCloseTasks] = useState<Task[]>(DEFAULT_CLOSE);
   const [monthlyTasks, setMonthlyTasks] = useState<Task[]>(DEFAULT_MONTHLY);
   const [outlet, setOutlet] = useState("");
   const [signedBy, setSignedBy] = useState("");
@@ -72,11 +72,9 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  const tasks = isDaily ? dailyTasks : monthlyTasks;
-  const setTasks = isDaily ? setDailyTasks : setMonthlyTasks;
-
   useEffect(() => {
-    setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+    setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
+    setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
     setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
     setOutlet(loadStored<string>(KEY_OUTLET, ""));
     setSignedBy(loadStored<string>(KEY_SIGNED, ""));
@@ -85,7 +83,8 @@ export function ChecklistPage({ mode }: Props) {
 
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
-      if (e.key === KEY_DAILY) setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+      if (e.key === KEY_OPEN) setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
+      if (e.key === KEY_CLOSE) setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
       if (e.key === KEY_MONTHLY) setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
       if (e.key === KEY_OUTLET) setOutlet(loadStored<string>(KEY_OUTLET, ""));
       if (e.key === KEY_SIGNED) setSignedBy(loadStored<string>(KEY_SIGNED, ""));
@@ -99,8 +98,11 @@ export function ChecklistPage({ mode }: Props) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(KEY_DAILY, JSON.stringify(dailyTasks));
-  }, [dailyTasks]);
+    localStorage.setItem(KEY_OPEN, JSON.stringify(openTasks));
+  }, [openTasks]);
+  useEffect(() => {
+    localStorage.setItem(KEY_CLOSE, JSON.stringify(closeTasks));
+  }, [closeTasks]);
   useEffect(() => {
     localStorage.setItem(KEY_MONTHLY, JSON.stringify(monthlyTasks));
   }, [monthlyTasks]);
@@ -114,9 +116,10 @@ export function ChecklistPage({ mode }: Props) {
     localStorage.setItem(KEY_DATE, JSON.stringify(reportDate));
   }, [reportDate]);
 
-  const dailyP = useMemo(() => pct(dailyTasks), [dailyTasks]);
+  const dailyAll = useMemo(() => [...openTasks, ...closeTasks], [openTasks, closeTasks]);
+  const dailyP = useMemo(() => pct(dailyAll), [dailyAll]);
   const monthlyP = useMemo(() => pct(monthlyTasks), [monthlyTasks]);
-  const combinedP = useMemo(() => pct([...dailyTasks, ...monthlyTasks]), [dailyTasks, monthlyTasks]);
+  const combinedP = useMemo(() => pct([...dailyAll, ...monthlyTasks]), [dailyAll, monthlyTasks]);
 
   const onSubmit = async () => {
     if (!outlet.trim()) return toast.error("Please enter the outlet name");
