@@ -12,8 +12,12 @@ const PayloadSchema = z.object({
   signedBy: z.string().trim().min(1).max(100),
   outlet: z.string().trim().min(1).max(100),
   reportDate: z.string().trim().min(1).max(40),
+  openTime: z.string().trim().max(20).optional().default(""),
+  closeTime: z.string().trim().max(20).optional().default(""),
   mode: z.enum(["daily", "monthly", "all"]).default("all"),
   daily: z.array(TaskSchema).max(200).default([]),
+  open: z.array(TaskSchema).max(200).default([]),
+  close: z.array(TaskSchema).max(200).default([]),
   monthly: z.array(TaskSchema).max(200).default([]),
 });
 
@@ -48,8 +52,9 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
 
     const includeDaily = data.mode === "daily" || data.mode === "all";
     const includeMonthly = data.mode === "monthly" || data.mode === "all";
+    const dailyAll = [...data.open, ...data.close, ...data.daily];
     const scoped = [
-      ...(includeDaily ? data.daily : []),
+      ...(includeDaily ? dailyAll : []),
       ...(includeMonthly ? data.monthly : []),
     ];
     const total = scoped.length;
@@ -68,10 +73,14 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
           <tr><td style="padding:4px 0"><b>Date:</b></td><td>${escapeHtml(data.reportDate)}</td></tr>
           <tr><td style="padding:4px 0"><b>Outlet:</b></td><td>${escapeHtml(data.outlet)}</td></tr>
           <tr><td style="padding:4px 0"><b>Signed by:</b></td><td>${escapeHtml(data.signedBy)}</td></tr>
+          <tr><td style="padding:4px 0"><b>Open time:</b></td><td>${escapeHtml(data.openTime || "-")}</td></tr>
+          <tr><td style="padding:4px 0"><b>Close time:</b></td><td>${escapeHtml(data.closeTime || "-")}</td></tr>
           <tr><td style="padding:4px 0"><b>Type:</b></td><td>${escapeHtml(modeLabel)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
         </table>
-        ${includeDaily ? renderList("Daily Tasks", data.daily) : ""}
+        ${includeDaily ? renderList("Open Bar", data.open) : ""}
+        ${includeDaily ? renderList("Close Bar", data.close) : ""}
+        ${includeDaily && data.daily.length > 0 ? renderList("Other Daily Tasks", data.daily) : ""}
         ${includeMonthly ? renderList("Monthly Tasks", data.monthly) : ""}
       </div>
     `;
