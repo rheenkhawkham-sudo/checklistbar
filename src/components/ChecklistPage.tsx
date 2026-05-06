@@ -11,13 +11,16 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
 
-const DEFAULT_DAILY: Task[] = [
-  { id: "d1", text: "Stock and restock liquor bottles", done: false },
-  { id: "d2", text: "Clean bar counter and tools", done: false },
-  { id: "d3", text: "Check ice machine and refill", done: false },
-  { id: "d4", text: "Wipe down glassware", done: false },
-  { id: "d5", text: "Empty trash and recycling", done: false },
-  { id: "d6", text: "Cash drawer reconciliation", done: false },
+const DEFAULT_OPEN: Task[] = [
+  { id: "o1", text: "Stock and restock liquor bottles", done: false },
+  { id: "o2", text: "Check ice machine and refill", done: false },
+  { id: "o3", text: "Wipe down glassware", done: false },
+];
+
+const DEFAULT_CLOSE: Task[] = [
+  { id: "c1", text: "Clean bar counter and tools", done: false },
+  { id: "c2", text: "Empty trash and recycling", done: false },
+  { id: "c3", text: "Cash drawer reconciliation", done: false },
 ];
 
 const DEFAULT_MONTHLY: Task[] = [
@@ -28,7 +31,8 @@ const DEFAULT_MONTHLY: Task[] = [
   { id: "m5", text: "Restock garnish and condiments", done: false },
 ];
 
-const KEY_DAILY = "bar.daily";
+const KEY_OPEN = "bar.daily.open";
+const KEY_CLOSE = "bar.daily.close";
 const KEY_MONTHLY = "bar.monthly";
 const KEY_OUTLET = "bar.outlet";
 const KEY_SIGNED = "bar.signedBy";
@@ -56,9 +60,9 @@ interface Props {
 
 export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
-  const title = isDaily ? "Daily Tasks" : "Monthly Tasks";
 
-  const [dailyTasks, setDailyTasks] = useState<Task[]>(DEFAULT_DAILY);
+  const [openTasks, setOpenTasks] = useState<Task[]>(DEFAULT_OPEN);
+  const [closeTasks, setCloseTasks] = useState<Task[]>(DEFAULT_CLOSE);
   const [monthlyTasks, setMonthlyTasks] = useState<Task[]>(DEFAULT_MONTHLY);
   const [outlet, setOutlet] = useState("");
   const [signedBy, setSignedBy] = useState("");
@@ -68,11 +72,9 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  const tasks = isDaily ? dailyTasks : monthlyTasks;
-  const setTasks = isDaily ? setDailyTasks : setMonthlyTasks;
-
   useEffect(() => {
-    setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+    setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
+    setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
     setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
     setOutlet(loadStored<string>(KEY_OUTLET, ""));
     setSignedBy(loadStored<string>(KEY_SIGNED, ""));
@@ -81,7 +83,8 @@ export function ChecklistPage({ mode }: Props) {
 
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
-      if (e.key === KEY_DAILY) setDailyTasks(loadStored(KEY_DAILY, DEFAULT_DAILY));
+      if (e.key === KEY_OPEN) setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
+      if (e.key === KEY_CLOSE) setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
       if (e.key === KEY_MONTHLY) setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
       if (e.key === KEY_OUTLET) setOutlet(loadStored<string>(KEY_OUTLET, ""));
       if (e.key === KEY_SIGNED) setSignedBy(loadStored<string>(KEY_SIGNED, ""));
@@ -95,8 +98,11 @@ export function ChecklistPage({ mode }: Props) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(KEY_DAILY, JSON.stringify(dailyTasks));
-  }, [dailyTasks]);
+    localStorage.setItem(KEY_OPEN, JSON.stringify(openTasks));
+  }, [openTasks]);
+  useEffect(() => {
+    localStorage.setItem(KEY_CLOSE, JSON.stringify(closeTasks));
+  }, [closeTasks]);
   useEffect(() => {
     localStorage.setItem(KEY_MONTHLY, JSON.stringify(monthlyTasks));
   }, [monthlyTasks]);
@@ -110,9 +116,10 @@ export function ChecklistPage({ mode }: Props) {
     localStorage.setItem(KEY_DATE, JSON.stringify(reportDate));
   }, [reportDate]);
 
-  const dailyP = useMemo(() => pct(dailyTasks), [dailyTasks]);
+  const dailyAll = useMemo(() => [...openTasks, ...closeTasks], [openTasks, closeTasks]);
+  const dailyP = useMemo(() => pct(dailyAll), [dailyAll]);
   const monthlyP = useMemo(() => pct(monthlyTasks), [monthlyTasks]);
-  const combinedP = useMemo(() => pct([...dailyTasks, ...monthlyTasks]), [dailyTasks, monthlyTasks]);
+  const combinedP = useMemo(() => pct([...dailyAll, ...monthlyTasks]), [dailyAll, monthlyTasks]);
 
   const onSubmit = async () => {
     if (!outlet.trim()) return toast.error("Please enter the outlet name");
@@ -126,7 +133,7 @@ export function ChecklistPage({ mode }: Props) {
           signedBy,
           reportDate,
           mode: "all",
-          daily: dailyTasks,
+          daily: dailyAll,
           monthly: monthlyTasks,
         },
       });
@@ -200,39 +207,71 @@ export function ChecklistPage({ mode }: Props) {
         </section>
 
         <div className="grid gap-6 mb-8">
-          <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border bg-card p-5 shadow-sm">
-            <div className="space-y-2">
-              <Label htmlFor="outlet">Outlet</Label>
-              <Input
-                id="outlet"
-                placeholder="e.g. Sky Bar – Sukhumvit"
-                value={outlet}
-                onChange={(e) => setOutlet(e.target.value)}
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signedBy">Signed by</Label>
-              <Input
-                id="signedBy"
-                placeholder="Your full name"
-                value={signedBy}
-                onChange={(e) => setSignedBy(e.target.value)}
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reportDate">Date</Label>
-              <Input
-                id="reportDate"
-                type="date"
-                value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
-              />
-            </div>
-          </div>
+          {(() => {
+            const metaFields = (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="outlet">Outlet</Label>
+                  <Input
+                    id="outlet"
+                    placeholder="e.g. Sky Bar – Sukhumvit"
+                    value={outlet}
+                    onChange={(e) => setOutlet(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signedBy">Signed by</Label>
+                  <Input
+                    id="signedBy"
+                    placeholder="Your full name"
+                    value={signedBy}
+                    onChange={(e) => setSignedBy(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reportDate">Date</Label>
+                  <Input
+                    id="reportDate"
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            );
 
-          <ChecklistSection title={title} tasks={tasks} onChange={setTasks} />
+            if (isDaily) {
+              return (
+                <>
+                  <ChecklistSection
+                    title="Open Bar"
+                    tasks={openTasks}
+                    onChange={setOpenTasks}
+                    variant="open"
+                  />
+                  <ChecklistSection
+                    title="Close Bar"
+                    tasks={closeTasks}
+                    onChange={setCloseTasks}
+                    variant="close"
+                    headerExtra={metaFields}
+                  />
+                </>
+              );
+            }
+            return (
+              <>
+                <div className="rounded-2xl border bg-card p-5 shadow-sm">{metaFields}</div>
+                <ChecklistSection
+                  title="Monthly Tasks"
+                  tasks={monthlyTasks}
+                  onChange={setMonthlyTasks}
+                />
+              </>
+            );
+          })()}
         </div>
 
         <div className="sticky bottom-4 z-10">
