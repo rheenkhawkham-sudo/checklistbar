@@ -156,7 +156,16 @@ export function ChecklistPage({ mode }: Props) {
         },
       });
       toast.success(`Submitted! Report sent to ${res.recipient}`);
+      const clearTasks = (arr: Task[]) =>
+        arr.map((t) => ({ ...t, done: false, remark: "" }));
+      setOpenTasks((prev) => clearTasks(prev));
+      setCloseTasks((prev) => clearTasks(prev));
+      setMonthlyTasks((prev) => clearTasks(prev));
+      setOutlet("");
       setSignedBy("");
+      setOpenTime("");
+      setCloseTime("");
+      setReportDate(new Date().toISOString().slice(0, 10));
     } catch (e) {
       console.error(e);
       toast.error("Failed to send email. Please try again.");
