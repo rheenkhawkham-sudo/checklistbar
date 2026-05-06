@@ -37,6 +37,8 @@ const KEY_MONTHLY = "bar.monthly";
 const KEY_OUTLET = "bar.outlet";
 const KEY_SIGNED = "bar.signedBy";
 const KEY_DATE = "bar.reportDate";
+const KEY_OPEN_TIME = "bar.openTime";
+const KEY_CLOSE_TIME = "bar.closeTime";
 
 function loadStored<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
