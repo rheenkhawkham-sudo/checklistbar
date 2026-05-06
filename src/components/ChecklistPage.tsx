@@ -71,6 +71,8 @@ export function ChecklistPage({ mode }: Props) {
   const [reportDate, setReportDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [openTime, setOpenTime] = useState("");
+  const [closeTime, setCloseTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
