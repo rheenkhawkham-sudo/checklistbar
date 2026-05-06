@@ -11,13 +11,16 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
 
-const DEFAULT_DAILY: Task[] = [
-  { id: "d1", text: "Stock and restock liquor bottles", done: false },
-  { id: "d2", text: "Clean bar counter and tools", done: false },
-  { id: "d3", text: "Check ice machine and refill", done: false },
-  { id: "d4", text: "Wipe down glassware", done: false },
-  { id: "d5", text: "Empty trash and recycling", done: false },
-  { id: "d6", text: "Cash drawer reconciliation", done: false },
+const DEFAULT_OPEN: Task[] = [
+  { id: "o1", text: "Stock and restock liquor bottles", done: false },
+  { id: "o2", text: "Check ice machine and refill", done: false },
+  { id: "o3", text: "Wipe down glassware", done: false },
+];
+
+const DEFAULT_CLOSE: Task[] = [
+  { id: "c1", text: "Clean bar counter and tools", done: false },
+  { id: "c2", text: "Empty trash and recycling", done: false },
+  { id: "c3", text: "Cash drawer reconciliation", done: false },
 ];
 
 const DEFAULT_MONTHLY: Task[] = [
@@ -28,7 +31,8 @@ const DEFAULT_MONTHLY: Task[] = [
   { id: "m5", text: "Restock garnish and condiments", done: false },
 ];
 
-const KEY_DAILY = "bar.daily";
+const KEY_OPEN = "bar.daily.open";
+const KEY_CLOSE = "bar.daily.close";
 const KEY_MONTHLY = "bar.monthly";
 const KEY_OUTLET = "bar.outlet";
 const KEY_SIGNED = "bar.signedBy";
