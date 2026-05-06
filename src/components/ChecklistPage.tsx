@@ -123,6 +123,12 @@ export function ChecklistPage({ mode }: Props) {
   useEffect(() => {
     localStorage.setItem(KEY_DATE, JSON.stringify(reportDate));
   }, [reportDate]);
+  useEffect(() => {
+    localStorage.setItem(KEY_OPEN_TIME, JSON.stringify(openTime));
+  }, [openTime]);
+  useEffect(() => {
+    localStorage.setItem(KEY_CLOSE_TIME, JSON.stringify(closeTime));
+  }, [closeTime]);
 
   const dailyAll = useMemo(() => [...openTasks, ...closeTasks], [openTasks, closeTasks]);
   const dailyP = useMemo(() => pct(dailyAll), [dailyAll]);
