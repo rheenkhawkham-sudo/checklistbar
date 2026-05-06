@@ -84,6 +84,8 @@ export function ChecklistPage({ mode }: Props) {
     setSignedBy(loadStored<string>(KEY_SIGNED, ""));
     const storedDate = loadStored<string>(KEY_DATE, "");
     if (storedDate) setReportDate(storedDate);
+    setOpenTime(loadStored<string>(KEY_OPEN_TIME, ""));
+    setCloseTime(loadStored<string>(KEY_CLOSE_TIME, ""));
 
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
