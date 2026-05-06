@@ -133,7 +133,7 @@ export function ChecklistPage({ mode }: Props) {
           signedBy,
           reportDate,
           mode: "all",
-          daily: dailyTasks,
+          daily: dailyAll,
           monthly: monthlyTasks,
         },
       });
