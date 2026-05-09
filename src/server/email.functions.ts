@@ -19,9 +19,10 @@ const PayloadSchema = z.object({
   open: z.array(TaskSchema).max(200).default([]),
   close: z.array(TaskSchema).max(200).default([]),
   monthly: z.array(TaskSchema).max(200).default([]),
+  recipients: z.array(z.string().trim().email()).max(5).optional().default([]),
 });
 
-const RECIPIENT = "rheen.khawkham@gmail.com";
+const DEFAULT_RECIPIENT = "rheen.khawkham@gmail.com";
 
 function renderList(title: string, tasks: { text: string; done: boolean; remark?: string }[]) {
   if (tasks.length === 0) return `<h3>${title}</h3><p style="color:#888">No tasks</p>`;
@@ -94,7 +95,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
       },
       body: JSON.stringify({
         from: "Bar Checklist <onboarding@resend.dev>",
-        to: [RECIPIENT],
+        to: data.recipients.length > 0 ? data.recipients : [DEFAULT_RECIPIENT],
         subject: `Bar Checklist (${modeLabel}) — ${data.outlet} — ${data.signedBy} (${pct}%)`,
         html,
       }),
@@ -105,5 +106,6 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
       console.error("Resend send failed", res.status, body);
       throw new Error(`Failed to send email [${res.status}]: ${JSON.stringify(body)}`);
     }
-    return { ok: true, recipient: RECIPIENT, pct };
+    const recipients = data.recipients.length > 0 ? data.recipients : [DEFAULT_RECIPIENT];
+    return { ok: true, recipient: recipients.join(", "), recipients, pct };
   });
