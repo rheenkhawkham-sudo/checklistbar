@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      checklist_reports: {
+        Row: {
+          close_tasks: Json
+          close_time: string
+          created_at: string
+          done_tasks: number
+          id: string
+          monthly_tasks: Json
+          open_tasks: Json
+          open_time: string
+          outlet: string
+          percent: number
+          report_date: string
+          signed_by: string
+          total_tasks: number
+        }
+        Insert: {
+          close_tasks?: Json
+          close_time?: string
+          created_at?: string
+          done_tasks?: number
+          id?: string
+          monthly_tasks?: Json
+          open_tasks?: Json
+          open_time?: string
+          outlet: string
+          percent?: number
+          report_date: string
+          signed_by: string
+          total_tasks?: number
+        }
+        Update: {
+          close_tasks?: Json
+          close_time?: string
+          created_at?: string
+          done_tasks?: number
+          id?: string
+          monthly_tasks?: Json
+          open_tasks?: Json
+          open_time?: string
+          outlet?: string
+          percent?: number
+          report_date?: string
+          signed_by?: string
+          total_tasks?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
