@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_OPEN: Task[] = [
   { id: "o1", text: "Stock and restock liquor bottles", done: false },
