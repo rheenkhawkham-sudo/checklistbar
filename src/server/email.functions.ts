@@ -19,9 +19,10 @@ const PayloadSchema = z.object({
   open: z.array(TaskSchema).max(200).default([]),
   close: z.array(TaskSchema).max(200).default([]),
   monthly: z.array(TaskSchema).max(200).default([]),
+  recipients: z.array(z.string().trim().email()).max(5).optional().default([]),
 });
 
-const RECIPIENT = "rheen.khawkham@gmail.com";
+const DEFAULT_RECIPIENT = "rheen.khawkham@gmail.com";
 
 function renderList(title: string, tasks: { text: string; done: boolean; remark?: string }[]) {
   if (tasks.length === 0) return `<h3>${title}</h3><p style="color:#888">No tasks</p>`;
