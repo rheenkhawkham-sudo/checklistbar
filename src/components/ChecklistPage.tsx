@@ -207,7 +207,7 @@ export function ChecklistPage({ mode }: Props) {
           </h1>
         </header>
 
-        <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-xs mx-auto">
+        <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-md mx-auto">
           <Link
             to="/daily"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full transition-colors text-muted-foreground hover:text-foreground"
@@ -227,6 +227,16 @@ export function ChecklistPage({ mode }: Props) {
             }}
           >
             Monthly
+          </Link>
+          <Link
+            to="/reports"
+            className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full transition-colors text-muted-foreground hover:text-foreground"
+            activeProps={{
+              className:
+                "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
+            }}
+          >
+            Reports
           </Link>
         </nav>
 
