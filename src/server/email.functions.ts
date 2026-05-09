@@ -95,7 +95,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
       },
       body: JSON.stringify({
         from: "Bar Checklist <onboarding@resend.dev>",
-        to: [RECIPIENT],
+        to: data.recipients.length > 0 ? data.recipients : [DEFAULT_RECIPIENT],
         subject: `Bar Checklist (${modeLabel}) — ${data.outlet} — ${data.signedBy} (${pct}%)`,
         html,
       }),
@@ -106,5 +106,6 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
       console.error("Resend send failed", res.status, body);
       throw new Error(`Failed to send email [${res.status}]: ${JSON.stringify(body)}`);
     }
-    return { ok: true, recipient: RECIPIENT, pct };
+    const recipients = data.recipients.length > 0 ? data.recipients : [DEFAULT_RECIPIENT];
+    return { ok: true, recipient: recipients.join(", "), recipients, pct };
   });
