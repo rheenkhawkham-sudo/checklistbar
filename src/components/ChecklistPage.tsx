@@ -2,28 +2,36 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Send, Wine } from "lucide-react";
+import { Send, Wine, Mail, Plus, Trash2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
+const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+type Outlet = typeof OUTLETS[number];
+
 const DEFAULT_OPEN: Task[] = [
   { id: "o1", text: "Stock and restock liquor bottles", done: false },
   { id: "o2", text: "Check ice machine and refill", done: false },
   { id: "o3", text: "Wipe down glassware", done: false },
 ];
-
 const DEFAULT_CLOSE: Task[] = [
   { id: "c1", text: "Clean bar counter and tools", done: false },
   { id: "c2", text: "Empty trash and recycling", done: false },
   { id: "c3", text: "Cash drawer reconciliation", done: false },
 ];
-
 const DEFAULT_MONTHLY: Task[] = [
   { id: "m1", text: "Deep clean draft beer lines", done: false },
   { id: "m2", text: "Inventory full audit", done: false },
@@ -32,16 +40,31 @@ const DEFAULT_MONTHLY: Task[] = [
   { id: "m5", text: "Restock garnish and condiments", done: false },
 ];
 
-const KEY_OPEN = "bar.daily.open";
-const KEY_CLOSE = "bar.daily.close";
-const KEY_MONTHLY = "bar.monthly";
-const KEY_OUTLET = "bar.outlet";
-const KEY_SIGNED = "bar.signedBy";
-const KEY_DATE = "bar.reportDate";
-const KEY_OPEN_TIME = "bar.openTime";
-const KEY_CLOSE_TIME = "bar.closeTime";
+interface OutletData {
+  open: Task[];
+  close: Task[];
+  monthly: Task[];
+  signedBy: string;
+  reportDate: string;
+  openTime: string;
+  closeTime: string;
+}
 
-function loadStored<T>(key: string, fallback: T): T {
+const DEFAULT_DATA = (): OutletData => ({
+  open: JSON.parse(JSON.stringify(DEFAULT_OPEN)),
+  close: JSON.parse(JSON.stringify(DEFAULT_CLOSE)),
+  monthly: JSON.parse(JSON.stringify(DEFAULT_MONTHLY)),
+  signedBy: "",
+  reportDate: new Date().toISOString().slice(0, 10),
+  openTime: "",
+  closeTime: "",
+});
+
+const KEY_OUTLET = "bar.currentOutlet";
+const KEY_RECIPIENTS = "bar.recipients";
+const dataKey = (o: Outlet) => `bar.outletData.${o}`;
+
+function load<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(key);
@@ -57,6 +80,16 @@ function pct(tasks: Task[]) {
   return { percent: t === 0 ? 0 : Math.round((d / t) * 100), done: d, total: t };
 }
 
+function requirePassword() {
+  const pw = window.prompt("กรุณาใส่รหัสผ่าน");
+  if (pw === null) return false;
+  if (pw !== "0000") {
+    window.alert("รหัสผ่านไม่ถูกต้อง");
+    return false;
+  }
+  return true;
+}
+
 interface Props {
   mode: "daily" | "monthly";
 }
@@ -64,127 +97,112 @@ interface Props {
 export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
 
-  const [openTasks, setOpenTasks] = useState<Task[]>(DEFAULT_OPEN);
-  const [closeTasks, setCloseTasks] = useState<Task[]>(DEFAULT_CLOSE);
-  const [monthlyTasks, setMonthlyTasks] = useState<Task[]>(DEFAULT_MONTHLY);
-  const [outlet, setOutlet] = useState("");
-  const [signedBy, setSignedBy] = useState("");
-  const [reportDate, setReportDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
-  const [openTime, setOpenTime] = useState("");
-  const [closeTime, setCloseTime] = useState("");
+  const [outlet, setOutlet] = useState<Outlet>(OUTLETS[0]);
+  const [data, setData] = useState<OutletData>(DEFAULT_DATA);
+  const [recipients, setRecipients] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
+  // Initial load
   useEffect(() => {
-    setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
-    setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
-    setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
-    setOutlet(loadStored<string>(KEY_OUTLET, ""));
-    setSignedBy(loadStored<string>(KEY_SIGNED, ""));
-    const storedDate = loadStored<string>(KEY_DATE, "");
-    if (storedDate) setReportDate(storedDate);
-    setOpenTime(loadStored<string>(KEY_OPEN_TIME, ""));
-    setCloseTime(loadStored<string>(KEY_CLOSE_TIME, ""));
+    const o = load<Outlet>(KEY_OUTLET, OUTLETS[0]);
+    const valid = (OUTLETS as readonly string[]).includes(o) ? o : OUTLETS[0];
+    setOutlet(valid);
+    setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(valid), DEFAULT_DATA()) });
+    setRecipients(load<string[]>(KEY_RECIPIENTS, []));
+  }, []);
 
+  // Sync outlet -> load that outlet's data
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(KEY_OUTLET, JSON.stringify(outlet));
+    setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(outlet), DEFAULT_DATA()) });
+  }, [outlet]);
+
+  // Persist data per outlet
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(dataKey(outlet), JSON.stringify(data));
+  }, [data, outlet]);
+
+  // Persist recipients
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(KEY_RECIPIENTS, JSON.stringify(recipients));
+  }, [recipients]);
+
+  // Cross-tab sync
+  useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
-      if (e.key === KEY_OPEN) setOpenTasks(loadStored(KEY_OPEN, DEFAULT_OPEN));
-      if (e.key === KEY_CLOSE) setCloseTasks(loadStored(KEY_CLOSE, DEFAULT_CLOSE));
-      if (e.key === KEY_MONTHLY) setMonthlyTasks(loadStored(KEY_MONTHLY, DEFAULT_MONTHLY));
-      if (e.key === KEY_OUTLET) setOutlet(loadStored<string>(KEY_OUTLET, ""));
-      if (e.key === KEY_SIGNED) setSignedBy(loadStored<string>(KEY_SIGNED, ""));
-      if (e.key === KEY_DATE) {
-        const v = loadStored<string>(KEY_DATE, "");
-        if (v) setReportDate(v);
+      if (e.key === KEY_OUTLET) {
+        const o = load<Outlet>(KEY_OUTLET, OUTLETS[0]);
+        if ((OUTLETS as readonly string[]).includes(o)) setOutlet(o);
       }
-      if (e.key === KEY_OPEN_TIME) setOpenTime(loadStored<string>(KEY_OPEN_TIME, ""));
-      if (e.key === KEY_CLOSE_TIME) setCloseTime(loadStored<string>(KEY_CLOSE_TIME, ""));
+      if (e.key === dataKey(outlet)) {
+        setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(outlet), DEFAULT_DATA()) });
+      }
+      if (e.key === KEY_RECIPIENTS) setRecipients(load<string[]>(KEY_RECIPIENTS, []));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(KEY_OPEN, JSON.stringify(openTasks));
-  }, [openTasks]);
-  useEffect(() => {
-    localStorage.setItem(KEY_CLOSE, JSON.stringify(closeTasks));
-  }, [closeTasks]);
-  useEffect(() => {
-    localStorage.setItem(KEY_MONTHLY, JSON.stringify(monthlyTasks));
-  }, [monthlyTasks]);
-  useEffect(() => {
-    localStorage.setItem(KEY_OUTLET, JSON.stringify(outlet));
   }, [outlet]);
-  useEffect(() => {
-    localStorage.setItem(KEY_SIGNED, JSON.stringify(signedBy));
-  }, [signedBy]);
-  useEffect(() => {
-    localStorage.setItem(KEY_DATE, JSON.stringify(reportDate));
-  }, [reportDate]);
-  useEffect(() => {
-    localStorage.setItem(KEY_OPEN_TIME, JSON.stringify(openTime));
-  }, [openTime]);
-  useEffect(() => {
-    localStorage.setItem(KEY_CLOSE_TIME, JSON.stringify(closeTime));
-  }, [closeTime]);
 
-  const dailyAll = useMemo(() => [...openTasks, ...closeTasks], [openTasks, closeTasks]);
+  const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
+
+  const dailyAll = useMemo(() => [...data.open, ...data.close], [data.open, data.close]);
   const dailyP = useMemo(() => pct(dailyAll), [dailyAll]);
-  const monthlyP = useMemo(() => pct(monthlyTasks), [monthlyTasks]);
-  const combinedP = useMemo(() => pct([...dailyAll, ...monthlyTasks]), [dailyAll, monthlyTasks]);
+  const monthlyP = useMemo(() => pct(data.monthly), [data.monthly]);
+  const combinedP = useMemo(() => pct([...dailyAll, ...data.monthly]), [dailyAll, data.monthly]);
 
   const onSubmit = async () => {
-    if (!outlet.trim()) return toast.error("Please enter the outlet name");
-    if (!signedBy.trim())
-      return toast.error("Please sign with your name before submitting");
+    if (!data.signedBy.trim()) return toast.error("Please sign with your name before submitting");
     setSubmitting(true);
     try {
       const res = await send({
         data: {
           outlet,
-          signedBy,
-          reportDate,
-          openTime,
-          closeTime,
+          signedBy: data.signedBy,
+          reportDate: data.reportDate,
+          openTime: data.openTime,
+          closeTime: data.closeTime,
           mode: "all",
-          open: openTasks,
-          close: closeTasks,
+          open: data.open,
+          close: data.close,
           daily: [],
-          monthly: monthlyTasks,
+          monthly: data.monthly,
+          recipients,
         },
       });
-      const allTasks = [...openTasks, ...closeTasks, ...monthlyTasks];
-      const totalTasks = allTasks.length;
-      const doneTasks = allTasks.filter((t) => t.done).length;
+      const all = [...data.open, ...data.close, ...data.monthly];
+      const totalTasks = all.length;
+      const doneTasks = all.filter((t) => t.done).length;
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
       const { error: dbErr } = await supabase.from("checklist_reports").insert({
-        report_date: reportDate,
+        report_date: data.reportDate,
         outlet,
-        signed_by: signedBy,
-        open_time: openTime,
-        close_time: closeTime,
-        open_tasks: JSON.parse(JSON.stringify(openTasks)),
-        close_tasks: JSON.parse(JSON.stringify(closeTasks)),
-        monthly_tasks: JSON.parse(JSON.stringify(monthlyTasks)),
+        signed_by: data.signedBy,
+        open_time: data.openTime,
+        close_time: data.closeTime,
+        open_tasks: JSON.parse(JSON.stringify(data.open)),
+        close_tasks: JSON.parse(JSON.stringify(data.close)),
+        monthly_tasks: JSON.parse(JSON.stringify(data.monthly)),
         total_tasks: totalTasks,
         done_tasks: doneTasks,
         percent,
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(`Submitted! Report sent to ${res.recipient}`);
-      const clearTasks = (arr: Task[]) =>
-        arr.map((t) => ({ ...t, done: false, remark: "" }));
-      setOpenTasks((prev) => clearTasks(prev));
-      setCloseTasks((prev) => clearTasks(prev));
-      setMonthlyTasks((prev) => clearTasks(prev));
-      setOutlet("");
-      setSignedBy("");
-      setOpenTime("");
-      setCloseTime("");
-      setReportDate(new Date().toISOString().slice(0, 10));
+      const clear = (arr: Task[]) => arr.map((t) => ({ ...t, done: false, remark: "" }));
+      setData((d) => ({
+        open: clear(d.open),
+        close: clear(d.close),
+        monthly: clear(d.monthly),
+        signedBy: "",
+        openTime: "",
+        closeTime: "",
+        reportDate: new Date().toISOString().slice(0, 10),
+      }));
     } catch (e) {
       console.error(e);
       toast.error("Failed to send email. Please try again.");
@@ -202,10 +220,28 @@ export function ChecklistPage({ mode }: Props) {
             <Wine className="h-3.5 w-3.5" />
             Bar Operations
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Bar Checklist
-          </h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Bar Checklist</h1>
         </header>
+
+        {/* Outlet selector */}
+        <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
+          <Label className="text-xs text-muted-foreground">Select Outlet</Label>
+          <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
+            <SelectTrigger className="mt-2 h-12 text-base font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OUTLETS.map((o) => (
+                <SelectItem key={o} value={o} className="text-base">
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-2 text-xs text-muted-foreground">
+            All data, tasks, and reports are kept separate per outlet.
+          </p>
+        </section>
 
         <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-md mx-auto">
           <Link
@@ -243,7 +279,7 @@ export function ChecklistPage({ mode }: Props) {
         <section className="flex flex-col items-center justify-center mb-8 rounded-3xl border bg-card p-8 shadow-sm">
           <CircularProgress percent={combinedP.percent} />
           <p className="mt-4 text-sm text-muted-foreground tabular-nums">
-            Overall: {combinedP.done} of {combinedP.total} tasks completed
+            {outlet} — {combinedP.done} of {combinedP.total} tasks completed
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-6 w-full max-w-sm">
@@ -268,26 +304,20 @@ export function ChecklistPage({ mode }: Props) {
               timeLabel: string,
               timeId: string,
               timeValue: string,
-              setTime: (v: string) => void
+              setTime: (v: string) => void,
             ) => (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor={`outlet-${timeId}`}>Outlet</Label>
-                  <Input
-                    id={`outlet-${timeId}`}
-                    placeholder="e.g. Sky Bar – Sukhumvit"
-                    value={outlet}
-                    onChange={(e) => setOutlet(e.target.value)}
-                    maxLength={100}
-                  />
+                  <Label>Outlet</Label>
+                  <Input value={outlet} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`signedBy-${timeId}`}>Signed by</Label>
                   <Input
                     id={`signedBy-${timeId}`}
                     placeholder="Your full name"
-                    value={signedBy}
-                    onChange={(e) => setSignedBy(e.target.value)}
+                    value={data.signedBy}
+                    onChange={(e) => update({ signedBy: e.target.value })}
                     maxLength={100}
                   />
                 </div>
@@ -296,8 +326,8 @@ export function ChecklistPage({ mode }: Props) {
                   <Input
                     id={`reportDate-${timeId}`}
                     type="date"
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
+                    value={data.reportDate}
+                    onChange={(e) => update({ reportDate: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -317,17 +347,21 @@ export function ChecklistPage({ mode }: Props) {
                 <>
                   <ChecklistSection
                     title="Open Bar"
-                    tasks={openTasks}
-                    onChange={setOpenTasks}
+                    tasks={data.open}
+                    onChange={(open) => update({ open })}
                     variant="open"
-                    headerExtra={buildMeta("Open time", "openTime", openTime, setOpenTime)}
+                    headerExtra={buildMeta("Open time", "openTime", data.openTime, (v) =>
+                      update({ openTime: v }),
+                    )}
                   />
                   <ChecklistSection
                     title="Close Bar"
-                    tasks={closeTasks}
-                    onChange={setCloseTasks}
+                    tasks={data.close}
+                    onChange={(close) => update({ close })}
                     variant="close"
-                    headerExtra={buildMeta("Close time", "closeTime", closeTime, setCloseTime)}
+                    headerExtra={buildMeta("Close time", "closeTime", data.closeTime, (v) =>
+                      update({ closeTime: v }),
+                    )}
                   />
                 </>
               );
@@ -337,22 +371,16 @@ export function ChecklistPage({ mode }: Props) {
                 <div className="rounded-2xl border bg-card p-5 shadow-sm">
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div className="space-y-2">
-                      <Label htmlFor="outlet-m">Outlet</Label>
-                      <Input
-                        id="outlet-m"
-                        placeholder="e.g. Sky Bar – Sukhumvit"
-                        value={outlet}
-                        onChange={(e) => setOutlet(e.target.value)}
-                        maxLength={100}
-                      />
+                      <Label>Outlet</Label>
+                      <Input value={outlet} disabled />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signedBy-m">Signed by</Label>
                       <Input
                         id="signedBy-m"
                         placeholder="Your full name"
-                        value={signedBy}
-                        onChange={(e) => setSignedBy(e.target.value)}
+                        value={data.signedBy}
+                        onChange={(e) => update({ signedBy: e.target.value })}
                         maxLength={100}
                       />
                     </div>
@@ -361,23 +389,25 @@ export function ChecklistPage({ mode }: Props) {
                       <Input
                         id="reportDate-m"
                         type="date"
-                        value={reportDate}
-                        onChange={(e) => setReportDate(e.target.value)}
+                        value={data.reportDate}
+                        onChange={(e) => update({ reportDate: e.target.value })}
                       />
                     </div>
                   </div>
                 </div>
                 <ChecklistSection
                   title="Monthly Tasks"
-                  tasks={monthlyTasks}
-                  onChange={setMonthlyTasks}
+                  tasks={data.monthly}
+                  onChange={(monthly) => update({ monthly })}
                 />
               </>
             );
           })()}
         </div>
 
-        <div className="sticky bottom-4 z-10">
+        <RecipientsSection recipients={recipients} setRecipients={setRecipients} />
+
+        <div className="sticky bottom-4 z-10 mt-6">
           <Button
             size="lg"
             className="w-full h-14 text-base shadow-lg"
@@ -388,10 +418,143 @@ export function ChecklistPage({ mode }: Props) {
             {submitting ? "Sending..." : "Submit & Email Report"}
           </Button>
           <p className="text-center text-xs text-muted-foreground mt-2">
-            Report will be emailed to <b>rheen.khawkham@gmail.com</b>
+            {recipients.length > 0
+              ? `Report will be emailed to ${recipients.length} recipient${recipients.length > 1 ? "s" : ""}`
+              : "Report will be emailed to rheen.khawkham@gmail.com (default)"}
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+function RecipientsSection({
+  recipients,
+  setRecipients,
+}: {
+  recipients: string[];
+  setRecipients: (r: string[]) => void;
+}) {
+  const [newEmail, setNewEmail] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+
+  const add = () => {
+    const e = newEmail.trim();
+    if (!isEmail(e)) return toast.error("Invalid email");
+    if (recipients.length >= 5) return toast.error("Maximum 5 emails allowed");
+    if (recipients.includes(e)) return toast.error("Email already added");
+    if (!requirePassword()) return;
+    setRecipients([...recipients, e]);
+    setNewEmail("");
+  };
+
+  const remove = (i: number) => {
+    if (!requirePassword()) return;
+    setRecipients(recipients.filter((_, idx) => idx !== i));
+  };
+
+  const startEdit = (i: number) => {
+    if (!requirePassword()) return;
+    setEditingIdx(i);
+    setEditValue(recipients[i]);
+  };
+
+  const saveEdit = () => {
+    if (editingIdx === null) return;
+    const e = editValue.trim();
+    if (!isEmail(e)) return toast.error("Invalid email");
+    setRecipients(recipients.map((r, idx) => (idx === editingIdx ? e : r)));
+    setEditingIdx(null);
+  };
+
+  return (
+    <section className="rounded-2xl border bg-card p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Mail className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-base font-semibold">Recipient Emails</h2>
+        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+          {recipients.length}/5
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Up to 5 recipients. Password required to add, edit, or remove (0000).
+      </p>
+
+      <ul className="space-y-2 mb-3">
+        {recipients.length === 0 && (
+          <li className="text-sm text-muted-foreground text-center py-3">
+            No recipients yet. Default: rheen.khawkham@gmail.com
+          </li>
+        )}
+        {recipients.map((r, i) => (
+          <li
+            key={i}
+            className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2"
+          >
+            {editingIdx === i ? (
+              <>
+                <Input
+                  autoFocus
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEdit();
+                    if (e.key === "Escape") setEditingIdx(null);
+                  }}
+                  className="flex-1"
+                />
+                <Button size="icon" variant="ghost" onClick={saveEdit}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => setEditingIdx(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 min-w-0 text-sm break-all">{r}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => startEdit(i)}
+                  aria-label="Edit"
+                  className="shrink-0"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => remove(i)}
+                  aria-label="Remove"
+                  className="shrink-0 text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {recipients.length < 5 && (
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="email@example.com"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            maxLength={255}
+          />
+          <Button size="icon" onClick={add} aria-label="Add email">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+    </section>
   );
 }
