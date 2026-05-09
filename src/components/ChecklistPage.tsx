@@ -156,6 +156,24 @@ export function ChecklistPage({ mode }: Props) {
           monthly: monthlyTasks,
         },
       });
+      const allTasks = [...openTasks, ...closeTasks, ...monthlyTasks];
+      const totalTasks = allTasks.length;
+      const doneTasks = allTasks.filter((t) => t.done).length;
+      const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+      const { error: dbErr } = await supabase.from("checklist_reports").insert({
+        report_date: reportDate,
+        outlet,
+        signed_by: signedBy,
+        open_time: openTime,
+        close_time: closeTime,
+        open_tasks: openTasks,
+        close_tasks: closeTasks,
+        monthly_tasks: monthlyTasks,
+        total_tasks: totalTasks,
+        done_tasks: doneTasks,
+        percent,
+      });
+      if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(`Submitted! Report sent to ${res.recipient}`);
       const clearTasks = (arr: Task[]) =>
         arr.map((t) => ({ ...t, done: false, remark: "" }));
