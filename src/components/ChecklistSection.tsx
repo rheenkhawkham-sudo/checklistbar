@@ -45,9 +45,25 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
   const setRemark = (id: string, remark: string) =>
     onChange(tasks.map((t) => (t.id === id ? { ...t, remark } : t)));
 
+  const requirePassword = () => {
+    const pw = window.prompt("กรุณาใส่รหัสผ่านเพื่อดำเนินการ");
+    if (pw === null) return false;
+    if (pw !== "0000") {
+      window.alert("รหัสผ่านไม่ถูกต้อง");
+      return false;
+    }
+    return true;
+  };
+
   const startEdit = (t: Task) => {
+    if (!requirePassword()) return;
     setEditingId(t.id);
     setEditText(t.text);
+  };
+
+  const tryRemove = (id: string) => {
+    if (!requirePassword()) return;
+    remove(id);
   };
 
   const saveEdit = () => {
@@ -121,7 +137,7 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
               ) : (
                 <>
                   <span
-                    className={`flex-1 min-w-0 text-sm break-words line-clamp-2 ${
+                    className={`flex-1 min-w-0 text-sm break-words whitespace-pre-wrap ${
                       t.done ? "line-through text-muted-foreground" : ""
                     }`}
                   >
@@ -130,7 +146,7 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 shrink-0"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
                     onClick={() => startEdit(t)}
                     aria-label="Edit"
                   >
@@ -139,8 +155,8 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 text-destructive shrink-0"
-                    onClick={() => remove(t.id)}
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-destructive shrink-0"
+                    onClick={() => tryRemove(t.id)}
                     aria-label="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
