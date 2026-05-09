@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as MonthlyRouteImport } from './routes/monthly'
 import { Route as DailyRouteImport } from './routes/daily'
 import { Route as IndexRouteImport } from './routes/index'
 
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MonthlyRoute = MonthlyRouteImport.update({
   id: '/monthly',
   path: '/monthly',
@@ -33,34 +39,45 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
   '/monthly': typeof MonthlyRoute
+  '/reports': typeof ReportsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
   '/monthly': typeof MonthlyRoute
+  '/reports': typeof ReportsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/daily': typeof DailyRoute
   '/monthly': typeof MonthlyRoute
+  '/reports': typeof ReportsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/daily' | '/monthly'
+  fullPaths: '/' | '/daily' | '/monthly' | '/reports'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/daily' | '/monthly'
-  id: '__root__' | '/' | '/daily' | '/monthly'
+  to: '/' | '/daily' | '/monthly' | '/reports'
+  id: '__root__' | '/' | '/daily' | '/monthly' | '/reports'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DailyRoute: typeof DailyRoute
   MonthlyRoute: typeof MonthlyRoute
+  ReportsRoute: typeof ReportsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/monthly': {
       id: '/monthly'
       path: '/monthly'
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DailyRoute: DailyRoute,
   MonthlyRoute: MonthlyRoute,
+  ReportsRoute: ReportsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

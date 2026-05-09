@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_OPEN: Task[] = [
   { id: "o1", text: "Stock and restock liquor bottles", done: false },
@@ -155,6 +156,24 @@ export function ChecklistPage({ mode }: Props) {
           monthly: monthlyTasks,
         },
       });
+      const allTasks = [...openTasks, ...closeTasks, ...monthlyTasks];
+      const totalTasks = allTasks.length;
+      const doneTasks = allTasks.filter((t) => t.done).length;
+      const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+      const { error: dbErr } = await supabase.from("checklist_reports").insert({
+        report_date: reportDate,
+        outlet,
+        signed_by: signedBy,
+        open_time: openTime,
+        close_time: closeTime,
+        open_tasks: JSON.parse(JSON.stringify(openTasks)),
+        close_tasks: JSON.parse(JSON.stringify(closeTasks)),
+        monthly_tasks: JSON.parse(JSON.stringify(monthlyTasks)),
+        total_tasks: totalTasks,
+        done_tasks: doneTasks,
+        percent,
+      });
+      if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(`Submitted! Report sent to ${res.recipient}`);
       const clearTasks = (arr: Task[]) =>
         arr.map((t) => ({ ...t, done: false, remark: "" }));
@@ -188,7 +207,7 @@ export function ChecklistPage({ mode }: Props) {
           </h1>
         </header>
 
-        <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-xs mx-auto">
+        <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-md mx-auto">
           <Link
             to="/daily"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full transition-colors text-muted-foreground hover:text-foreground"
@@ -208,6 +227,16 @@ export function ChecklistPage({ mode }: Props) {
             }}
           >
             Monthly
+          </Link>
+          <Link
+            to="/reports"
+            className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full transition-colors text-muted-foreground hover:text-foreground"
+            activeProps={{
+              className:
+                "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
+            }}
+          >
+            Reports
           </Link>
         </nav>
 
