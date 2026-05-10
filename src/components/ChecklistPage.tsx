@@ -183,9 +183,13 @@ export function ChecklistPage({ mode }: Props) {
       if (!active) return;
 
       const od = map.get(STATE_KEY_OUTLET(validCur)) as Partial<OutletData> | undefined;
-      setData({ ...DEFAULT_DATA(), ...(od ?? {}) });
+      const initialData = { ...DEFAULT_DATA(), ...(od ?? {}) };
+      setData(initialData);
+      lastSyncedDataCanonRef.current = canon(initialData);
       const recs = map.get(STATE_KEY_RECIPIENTS);
-      setRecipients(Array.isArray(recs) ? (recs as string[]) : []);
+      const initialRecs = Array.isArray(recs) ? (recs as string[]) : [];
+      setRecipients(initialRecs);
+      lastSyncedRecCanonRef.current = canon(initialRecs);
     })();
 
     const channel = supabase
@@ -202,15 +206,32 @@ export function ChecklistPage({ mode }: Props) {
               setOutlet(v);
             }
           } else if (row.key === STATE_KEY_RECIPIENTS) {
-            if (pendingRecPushRef.current) return;
             const next = Array.isArray(row.value) ? (row.value as string[]) : [];
-            if (canon(next) !== canon(recipientsRef.current)) setRecipients(next);
+            const remoteCanon = canon(next);
+            if (remoteCanon === lastSyncedRecCanonRef.current) return; // echo
+            const localCanon = canon(recipientsRef.current);
+            if (localCanon !== lastSyncedRecCanonRef.current) {
+              // local has unpushed edits — keep them, but ack we've seen remote
+              lastSyncedRecCanonRef.current = remoteCanon;
+              return;
+            }
+            setRecipients(next);
+            lastSyncedRecCanonRef.current = remoteCanon;
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
             if (o !== outletRef.current) return;
-            if (pendingDataPushRef.current) return;
             const merged = { ...DEFAULT_DATA(), ...((row.value ?? {}) as Partial<OutletData>) };
-            if (canon(merged) !== canon(dataRef.current)) setData(merged);
+            const remoteCanon = canon(merged);
+            if (remoteCanon === lastSyncedDataCanonRef.current) return; // echo
+            const localCanon = canon(dataRef.current);
+            if (localCanon !== lastSyncedDataCanonRef.current) {
+              // user is in the middle of typing/ticking — local wins, our
+              // pending push will overwrite remote shortly.
+              lastSyncedDataCanonRef.current = remoteCanon;
+              return;
+            }
+            setData(merged);
+            lastSyncedDataCanonRef.current = remoteCanon;
           }
         },
       )
