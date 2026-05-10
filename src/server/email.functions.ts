@@ -82,7 +82,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
         ${includeDaily ? renderList("Open Bar", data.open) : ""}
         ${includeDaily ? renderList("Close Bar", data.close) : ""}
         ${includeDaily && data.daily.length > 0 ? renderList("Other Daily Tasks", data.daily) : ""}
-        ${includeMonthly ? renderList("Monthly Tasks", data.monthly) : ""}
+        ${includeMonthly ? renderList("Weekly Cleaning", data.monthly) : ""}
       </div>
     `;
 
