@@ -113,6 +113,11 @@ export function ChecklistPage({ mode }: Props) {
   const recipientsRef = useRef<string[]>(recipients);
   const pendingDataPushRef = useRef(false);
   const pendingRecPushRef = useRef(false);
+  // Canon of last value we either successfully pushed OR adopted from remote
+  // for the currently-selected outlet. Used to detect "is local ahead of
+  // remote?" so realtime echoes don't clobber in-flight user edits.
+  const lastSyncedDataCanonRef = useRef<string>("");
+  const lastSyncedRecCanonRef = useRef<string>("");
 
   useEffect(() => {
     dataRef.current = data;
