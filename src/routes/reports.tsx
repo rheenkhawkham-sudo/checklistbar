@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock, KeyRound, CalendarIcon, CheckSquare, X } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import jsPDF from "jspdf";
@@ -11,7 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getPassword } from "@/lib/passwords";
 import { useI18n, LangToggle } from "@/lib/i18n";
@@ -46,6 +52,7 @@ interface Report {
 }
 
 type Period = "daily" | "monthly" | "yearly";
+type DateMode = "all" | "day" | "month" | "year" | "range";
 
 function fmtKey(dateStr: string, period: Period) {
   const d = new Date(dateStr);
@@ -123,9 +130,14 @@ function downloadPDF(label: string, reports: Report[]) {
   doc.save(`${safe}_reports_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function ReportsPage() {
   const { t } = useI18n();
-  const { requirePassword, changePassword } = usePasswords();
+  const { changePassword } = usePasswords();
 
   const [unlocked, setUnlocked] = useState(false);
   const [pwInput, setPwInput] = useState("");
@@ -137,9 +149,12 @@ function ReportsPage() {
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const [dateMode, setDateMode] = useState<DateMode>("all");
+  const [singleDay, setSingleDay] = useState<Date | undefined>(undefined);
+  const now = new Date();
+  const [pickYear, setPickYear] = useState<number>(now.getFullYear());
+  const [pickMonth, setPickMonth] = useState<number>(now.getMonth());
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
 
@@ -156,18 +171,55 @@ function ReportsPage() {
   };
 
   useEffect(() => {
-    if (unlocked) loadReports();
+    if (!unlocked) return;
+    loadReports();
+
+    // Realtime: stay synced across all devices viewing reports
+    const channel = supabase
+      .channel("checklist_reports_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "checklist_reports" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const row = payload.new as unknown as Report;
+            setReports((prev) =>
+              prev.some((r) => r.id === row.id) ? prev : [row, ...prev],
+            );
+          } else if (payload.eventType === "UPDATE") {
+            const row = payload.new as unknown as Report;
+            setReports((prev) => prev.map((r) => (r.id === row.id ? row : r)));
+          } else if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as unknown as { id: string };
+            setReports((prev) => prev.filter((r) => r.id !== oldRow.id));
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [unlocked]);
 
   const filtered = useMemo(() => {
     let list = outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet);
-    if (dateRange?.from) {
+    if (dateMode === "day" && singleDay) {
+      const key = format(singleDay, "yyyy-MM-dd");
+      list = list.filter((r) => r.report_date === key);
+    } else if (dateMode === "month") {
+      const prefix = `${pickYear}-${String(pickMonth + 1).padStart(2, "0")}`;
+      list = list.filter((r) => r.report_date.startsWith(prefix));
+    } else if (dateMode === "year") {
+      const prefix = `${pickYear}-`;
+      list = list.filter((r) => r.report_date.startsWith(prefix));
+    } else if (dateMode === "range" && dateRange?.from) {
       const fromKey = format(dateRange.from, "yyyy-MM-dd");
       const toKey = format(dateRange.to ?? dateRange.from, "yyyy-MM-dd");
       list = list.filter((r) => r.report_date >= fromKey && r.report_date <= toKey);
     }
     return list;
-  }, [reports, outlet, dateRange]);
+  }, [reports, outlet, dateMode, singleDay, pickYear, pickMonth, dateRange]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
@@ -182,82 +234,15 @@ function ReportsPage() {
 
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
-  const toggleSelect = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  const selectGroup = (items: Report[]) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      const allSelected = items.every((r) => next.has(r.id));
-      if (allSelected) items.forEach((r) => next.delete(r.id));
-      else items.forEach((r) => next.add(r.id));
-      return next;
-    });
-
-  const deleteIds = async (ids: string[]) => {
-    if (ids.length === 0) return;
-    if (!requirePassword("reports", "enterToDeleteReports")) return;
-    if (!window.confirm(t("deleteSelectedConfirm", { n: String(ids.length) }))) return;
-    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
-    if (error) {
-      window.alert(t("deleteFail") + error.message);
-      return;
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const r of reports) {
+      const y = parseInt(r.report_date.slice(0, 4), 10);
+      if (!isNaN(y)) years.add(y);
     }
-    const set = new Set(ids);
-    setReports((prev) => prev.filter((r) => !set.has(r.id)));
-    setSelectedIds(new Set());
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!requirePassword("reports", "enterToDeleteReport")) return;
-    if (!window.confirm(t("deleteConfirm"))) return;
-    const { error } = await supabase.from("checklist_reports").delete().eq("id", id);
-    if (error) {
-      window.alert(t("deleteFail") + error.message);
-      return;
-    }
-    setReports((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  const handleDeleteAll = async () => {
-    const ids = filtered.map((r) => r.id);
-    if (ids.length === 0) return;
-    if (!requirePassword("reports", "enterToDeleteReports")) return;
-    if (!window.confirm(t("deleteAllConfirm", { n: String(ids.length) }))) return;
-    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
-    if (error) {
-      window.alert(t("deleteFail") + error.message);
-      return;
-    }
-    const set = new Set(ids);
-    setReports((prev) => prev.filter((r) => !set.has(r.id)));
-    setSelectedIds(new Set());
-  };
-
-  const handleEdit = async (r: Report) => {
-    if (!requirePassword("reports", "enterToEditReport")) return;
-    const signed = window.prompt(t("signedBy"), r.signed_by) ?? r.signed_by;
-    const openTime = window.prompt(t("openTime"), r.open_time) ?? r.open_time;
-    const closeTime = window.prompt(t("closeTime"), r.close_time) ?? r.close_time;
-    const { error } = await supabase
-      .from("checklist_reports")
-      .update({ signed_by: signed, open_time: openTime, close_time: closeTime })
-      .eq("id", r.id);
-    if (error) {
-      window.alert(t("editFail") + error.message);
-      return;
-    }
-    setReports((prev) =>
-      prev.map((x) =>
-        x.id === r.id ? { ...x, signed_by: signed, open_time: openTime, close_time: closeTime } : x,
-      ),
-    );
-  };
+    years.add(now.getFullYear());
+    return Array.from(years).sort((a, b) => b - a);
+  }, [reports, now]);
 
   if (!unlocked) {
     return (
@@ -381,87 +366,121 @@ function ReportsPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn(!dateRange?.from && "text-muted-foreground")}>
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "PP")} – {format(dateRange.to, "PP")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "PP")
-                  )
-                ) : (
-                  t("pickDateRange")
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={1}
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-          {dateRange?.from && (
-            <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)}>
-              <X className="h-4 w-4 mr-1" /> {t("clearRange")}
-            </Button>
+        <div className="rounded-2xl border bg-card p-3 mb-6 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Tabs value={dateMode} onValueChange={(v) => setDateMode(v as DateMode)}>
+              <TabsList>
+                <TabsTrigger value="all">{t("all")}</TabsTrigger>
+                <TabsTrigger value="day">{t("day")}</TabsTrigger>
+                <TabsTrigger value="month">{t("month")}</TabsTrigger>
+                <TabsTrigger value="year">{t("year")}</TabsTrigger>
+                <TabsTrigger value="range">{t("range")}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {dateMode === "day" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(!singleDay && "text-muted-foreground")}>
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {singleDay ? format(singleDay, "PPP") : t("pickDate")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={singleDay}
+                    onSelect={setSingleDay}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {singleDay && (
+                <Button variant="ghost" size="sm" onClick={() => setSingleDay(undefined)}>
+                  <X className="h-4 w-4 mr-1" /> {t("clear")}
+                </Button>
+              )}
+            </div>
           )}
-          <div className="flex-1" />
-          {!selectMode ? (
-            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} disabled={filtered.length === 0}>
-              <CheckSquare className="h-4 w-4 mr-2" />
-              {t("selectMode")}
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedIds(new Set(filtered.map((r) => r.id)))}
-              >
-                {t("selectAll")}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
-                {t("clearSelection")}
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={selectedIds.size === 0}
-                onClick={() => deleteIds(Array.from(selectedIds))}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {t("deleteSelected", { n: String(selectedIds.size) })}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSelectMode(false);
-                  setSelectedIds(new Set());
-                }}
-              >
-                {t("cancelSelect")}
-              </Button>
-            </>
+
+          {dateMode === "month" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={String(pickMonth)} onValueChange={(v) => setPickMonth(parseInt(v, 10))}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => (
+                    <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(pickYear)} onValueChange={(v) => setPickYear(parseInt(v, 10))}>
+                <SelectTrigger className="w-[120px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeleteAll}
-            disabled={filtered.length === 0}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {t("deleteAll")}
-          </Button>
+
+          {dateMode === "year" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={String(pickYear)} onValueChange={(v) => setPickYear(parseInt(v, 10))}>
+                <SelectTrigger className="w-[120px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {dateMode === "range" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(!dateRange?.from && "text-muted-foreground")}>
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "PP")} – {format(dateRange.to, "PP")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "PP")
+                      )
+                    ) : (
+                      t("pickDateRange")
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={1}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange?.from && (
+                <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)}>
+                  <X className="h-4 w-4 mr-1" /> {t("clear")}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -475,30 +494,12 @@ function ReportsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {groups.map(([groupKey, items]) => {
-              const allSelected = selectMode && items.every((r) => selectedIds.has(r.id));
-              return (
+            {groups.map(([groupKey, items]) => (
               <section key={groupKey}>
                 <div className="flex items-center justify-between mb-2 px-1 gap-2">
                   <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     {groupKey} <span className="text-xs">({items.length})</span>
                   </h2>
-                  <div className="flex items-center gap-1">
-                    {selectMode && (
-                      <Button variant="ghost" size="sm" onClick={() => selectGroup(items)}>
-                        {allSelected ? t("clearSelection") : t("selectAll")}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => deleteIds(items.map((r) => r.id))}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      {t("deleteGroup")}
-                    </Button>
-                  </div>
                 </div>
                 <div className="space-y-2">
                   {items.map((r) => (
@@ -506,60 +507,33 @@ function ReportsPage() {
                       key={r.id}
                       className="rounded-2xl border bg-card shadow-sm overflow-hidden"
                     >
-                      <div className="w-full flex items-center gap-2 px-4 py-3">
-                        {selectMode && (
-                          <Checkbox
-                            checked={selectedIds.has(r.id)}
-                            onCheckedChange={() => toggleSelect(r.id)}
-                            aria-label="Select report"
-                          />
+                      <button
+                        onClick={() => toggle(r.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                      >
+                        {expanded[r.id] ? (
+                          <ChevronDown className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 shrink-0" />
                         )}
-                        <button
-                          onClick={() => toggle(r.id)}
-                          className="flex-1 flex items-center gap-3 text-left"
-                        >
-                          {expanded[r.id] ? (
-                            <ChevronDown className="h-4 w-4 shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="font-semibold truncate">{r.outlet}</span>
-                              <span className="text-xs text-muted-foreground">{r.report_date}</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {t("signedBy")} {r.signed_by}
-                              {r.open_time && ` · ${t("openTime")} ${r.open_time}`}
-                              {r.close_time && ` · ${t("closeTime")} ${r.close_time}`}
-                            </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-semibold truncate">{r.outlet}</span>
+                            <span className="text-xs text-muted-foreground">{r.report_date}</span>
                           </div>
-                          <div className="text-right shrink-0">
-                            <div className="text-sm font-semibold tabular-nums">{r.percent}%</div>
-                            <div className="text-[10px] text-muted-foreground tabular-nums">
-                              {r.done_tasks}/{r.total_tasks}
-                            </div>
-                          </div>
-                        </button>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(r)}
-                            aria-label={t("editAria")}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(r.id)}
-                            aria-label={t("deleteAria")}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {t("signedBy")} {r.signed_by}
+                            {r.open_time && ` · ${t("openTime")} ${r.open_time}`}
+                            {r.close_time && ` · ${t("closeTime")} ${r.close_time}`}
+                          </p>
                         </div>
-                      </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-semibold tabular-nums">{r.percent}%</div>
+                          <div className="text-[10px] text-muted-foreground tabular-nums">
+                            {r.done_tasks}/{r.total_tasks}
+                          </div>
+                        </div>
+                      </button>
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
                           <TaskList title={t("openBar")} tasks={r.open_tasks} />
@@ -571,8 +545,7 @@ function ReportsPage() {
                   ))}
                 </div>
               </section>
-              );
-            })}
+            ))}
           </div>
         )}
 
