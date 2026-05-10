@@ -280,9 +280,9 @@ function ReportsPage() {
           </Link>
         </nav>
 
-        {/* Outlet selector — one file per outlet */}
-        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {OUTLETS.map((o) => (
+        {/* Outlet selector — choose one outlet or all */}
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {OUTLET_OPTIONS.map((o) => (
             <button
               key={o}
               onClick={() => setOutlet(o)}
@@ -308,11 +308,11 @@ function ReportsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => downloadOutletCSV(outlet, filtered)}
+            onClick={() => downloadPDF(outlet, filtered)}
             disabled={filtered.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Download {outlet}
+            Download PDF — {outlet}
           </Button>
         </div>
 
