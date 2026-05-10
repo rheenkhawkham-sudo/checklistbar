@@ -266,16 +266,17 @@ export function ChecklistPage({ mode }: Props) {
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      const clear = (arr: Task[]) => arr.map((x) => ({ ...x, done: false, remark: "" }));
-      setData((d) => ({
-        open: clear(d.open),
-        close: clear(d.close),
-        monthly: clear(d.monthly),
-        signedBy: "",
-        openTime: "",
-        closeTime: "",
-        reportDate: new Date().toISOString().slice(0, 10),
-      }));
+      // Clear data for EVERY outlet so the next round starts fresh everywhere.
+      const fresh = DEFAULT_DATA();
+      pendingDataPushRef.current = true;
+      try {
+        await Promise.all(
+          OUTLETS.map((o) => pushState(STATE_KEY_OUTLET(o), fresh)),
+        );
+      } finally {
+        pendingDataPushRef.current = false;
+      }
+      setData(fresh);
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
