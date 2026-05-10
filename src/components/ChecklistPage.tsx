@@ -423,11 +423,17 @@ export function ChecklistPage({ mode }: Props) {
             {t("completedSummary", { outlet, done: combinedP.done, total: combinedP.total })}
           </p>
 
-          <div className="mt-8 grid grid-cols-2 gap-6 w-full max-w-sm">
+          <div className="mt-8 grid grid-cols-3 gap-4 w-full max-w-md">
             <div className="flex flex-col items-center">
-              <CircularProgress percent={dailyP.percent} size={100} />
+              <CircularProgress percent={openP.percent} size={100} />
               <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                {t("dailyShort")} {dailyP.done}/{dailyP.total}
+                {t("openShort")} {openP.done}/{openP.total}
+              </p>
+            </div>
+            <div className="flex flex-col items-center">
+              <CircularProgress percent={closeP.percent} size={100} />
+              <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                {t("closeShort")} {closeP.done}/{closeP.total}
               </p>
             </div>
             <div className="flex flex-col items-center">
