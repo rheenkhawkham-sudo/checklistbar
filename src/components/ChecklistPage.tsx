@@ -531,7 +531,7 @@ function RecipientsSection({
         </span>
       </div>
       <p className="text-xs text-muted-foreground mb-3">
-        Up to 5 recipients. Password required to add, edit, or remove (0000).
+        Up to 5 recipients.
       </p>
 
       <ul className="space-y-2 mb-3">
