@@ -67,6 +67,10 @@ export function ChecklistSection({
   const add = () => {
     const txt = newText.trim();
     if (!txt) return;
+    if (tasks.length >= MAX_TASKS) {
+      toast.error(t("maxTasks"));
+      return;
+    }
     onChange([...tasks, { id: crypto.randomUUID(), text: txt, done: false, remark: "" }]);
     setNewText("");
   };
