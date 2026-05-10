@@ -13,6 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+
+const MAX_TASKS = 50;
 import { useI18n } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
 
