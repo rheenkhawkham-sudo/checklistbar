@@ -243,7 +243,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     [lang],
   );
 
-  const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
+  const tTask = useCallback((text: string) => translateTaskText(text, lang), [lang]);
+
+  const value = useMemo(() => ({ lang, setLang, t, tTask }), [lang, setLang, t, tTask]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
