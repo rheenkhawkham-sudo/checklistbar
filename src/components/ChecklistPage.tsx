@@ -133,6 +133,50 @@ export function ChecklistPage({ mode }: Props) {
       const cur = (map.get(STATE_KEY_CURRENT) as Outlet | undefined) ?? OUTLETS[0];
       const validCur = (OUTLETS as readonly string[]).includes(cur) ? cur : OUTLETS[0];
       setOutlet(validCur);
+
+      // One-time restore: if an outlet's app_state has the bare defaults
+      // (e.g. was wiped by a previous submit), repopulate task headings
+      // from its most recent submitted report so user-added tasks return.
+      const isDefaultTaskSet = (od: Partial<OutletData> | undefined): boolean => {
+        if (!od) return true;
+        const def = DEFAULT_DATA();
+        const same = (a?: Task[], b?: Task[]) =>
+          JSON.stringify((a ?? []).map((x) => x.text)) ===
+          JSON.stringify((b ?? []).map((x) => x.text));
+        return (
+          same(od.open, def.open) &&
+          same(od.close, def.close) &&
+          same(od.monthly, def.monthly)
+        );
+      };
+      const resetDone = (arr: Task[]): Task[] =>
+        (arr ?? []).map((x) => ({ ...x, done: false, remark: "" }));
+
+      await Promise.all(
+        OUTLETS.map(async (o) => {
+          const od = map.get(STATE_KEY_OUTLET(o)) as Partial<OutletData> | undefined;
+          if (!isDefaultTaskSet(od)) return;
+          const { data: report } = await supabase
+            .from("checklist_reports")
+            .select("open_tasks,close_tasks,monthly_tasks")
+            .eq("outlet", o)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!report) return;
+          const restored: OutletData = {
+            ...DEFAULT_DATA(),
+            ...(od ?? {}),
+            open: resetDone((report.open_tasks ?? []) as unknown as Task[]),
+            close: resetDone((report.close_tasks ?? []) as unknown as Task[]),
+            monthly: resetDone((report.monthly_tasks ?? []) as unknown as Task[]),
+          };
+          map.set(STATE_KEY_OUTLET(o), restored as unknown as never);
+          await pushState(STATE_KEY_OUTLET(o), restored);
+        }),
+      );
+      if (!active) return;
+
       const od = map.get(STATE_KEY_OUTLET(validCur)) as Partial<OutletData> | undefined;
       setData({ ...DEFAULT_DATA(), ...(od ?? {}) });
       const recs = map.get(STATE_KEY_RECIPIENTS);
@@ -266,17 +310,39 @@ export function ChecklistPage({ mode }: Props) {
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      // Clear data for EVERY outlet so the next round starts fresh everywhere.
-      const fresh = DEFAULT_DATA();
+      // Reset only the "done" checkmarks for EVERY outlet — keep all
+      // user-added/edited task headings intact for the next round.
+      const resetTasks = (arr: Task[]): Task[] =>
+        arr.map((x) => ({ ...x, done: false }));
       pendingDataPushRef.current = true;
       try {
+        const { data: rows } = await supabase
+          .from("app_state")
+          .select("key,value")
+          .in(
+            "key",
+            OUTLETS.map((o) => STATE_KEY_OUTLET(o)),
+          );
+        const map = new Map((rows ?? []).map((r) => [r.key, r.value]));
         await Promise.all(
-          OUTLETS.map((o) => pushState(STATE_KEY_OUTLET(o), fresh)),
+          OUTLETS.map((o) => {
+            const cur = {
+              ...DEFAULT_DATA(),
+              ...((map.get(STATE_KEY_OUTLET(o)) ?? {}) as Partial<OutletData>),
+            };
+            const cleared: OutletData = {
+              ...cur,
+              open: resetTasks(cur.open),
+              close: resetTasks(cur.close),
+              monthly: resetTasks(cur.monthly),
+            };
+            if (o === outlet) setData(cleared);
+            return pushState(STATE_KEY_OUTLET(o), cleared);
+          }),
         );
       } finally {
         pendingDataPushRef.current = false;
       }
-      setData(fresh);
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
