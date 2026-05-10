@@ -292,7 +292,7 @@ export function ChecklistPage({ mode }: Props) {
             <div className="flex flex-col items-center">
               <CircularProgress percent={monthlyP.percent} size={100} />
               <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                Monthly {monthlyP.done}/{monthlyP.total}
+                Weekly {monthlyP.done}/{monthlyP.total}
               </p>
             </div>
           </div>
