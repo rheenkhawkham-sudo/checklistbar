@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
 });
+
+const REPORT_PASSWORD = "00000";
+const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+type Outlet = (typeof OUTLETS)[number];
 
 type Task = { id: string; text: string; done: boolean; remark?: string };
 
@@ -42,38 +47,176 @@ function fmtKey(dateStr: string, period: Period) {
   });
 }
 
+function askPassword(label = "กรุณาใส่รหัสผ่าน") {
+  const v = window.prompt(label);
+  return v === REPORT_PASSWORD;
+}
+
+function csvEscape(v: unknown) {
+  const s = String(v ?? "");
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadOutletCSV(outlet: Outlet, reports: Report[]) {
+  const rows = [
+    ["Date", "Outlet", "Signed By", "Open Time", "Close Time", "Section", "Task", "Done", "Remark"],
+  ];
+  for (const r of reports) {
+    const sections: [string, Task[]][] = [
+      ["Open", r.open_tasks ?? []],
+      ["Close", r.close_tasks ?? []],
+      ["Monthly", r.monthly_tasks ?? []],
+    ];
+    for (const [section, tasks] of sections) {
+      for (const t of tasks) {
+        rows.push([
+          r.report_date,
+          r.outlet,
+          r.signed_by,
+          r.open_time,
+          r.close_time,
+          section,
+          t.text,
+          t.done ? "Yes" : "No",
+          t.remark ?? "",
+        ]);
+      }
+    }
+  }
+  const csv = "\uFEFF" + rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${outlet.replace(/\s+/g, "_")}_reports_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function ReportsPage() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState("");
+
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
+  const [outlet, setOutlet] = useState<Outlet>(OUTLETS[0]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const loadReports = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("checklist_reports")
+      .select("*")
+      .order("report_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    if (!error && data) setReports(data as unknown as Report[]);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("checklist_reports")
-        .select("*")
-        .order("report_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (!error && data) setReports(data as unknown as Report[]);
-      setLoading(false);
-    })();
-  }, []);
+    if (unlocked) loadReports();
+  }, [unlocked]);
+
+  const filtered = useMemo(
+    () => reports.filter((r) => r.outlet === outlet),
+    [reports, outlet],
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
-    for (const r of reports) {
+    for (const r of filtered) {
       const key = fmtKey(r.report_date, period);
       const arr = map.get(key) ?? [];
       arr.push(r);
       map.set(key, arr);
     }
     return Array.from(map.entries());
-  }, [reports, period]);
+  }, [filtered, period]);
 
-  const toggle = (id: string) =>
-    setExpanded((p) => ({ ...p, [id]: !p[id] }));
+  const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
+
+  const handleDelete = async (id: string) => {
+    if (!askPassword("ใส่รหัสผ่านเพื่อลบรีพอร์ท")) return;
+    if (!window.confirm("ยืนยันการลบรีพอร์ทนี้?")) return;
+    const { error } = await supabase.from("checklist_reports").delete().eq("id", id);
+    if (error) {
+      window.alert("ลบไม่สำเร็จ: " + error.message);
+      return;
+    }
+    setReports((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleEdit = async (r: Report) => {
+    if (!askPassword("ใส่รหัสผ่านเพื่อแก้ไขรีพอร์ท")) return;
+    const signed = window.prompt("ผู้ทำ (Signed by)", r.signed_by) ?? r.signed_by;
+    const openTime = window.prompt("Open time", r.open_time) ?? r.open_time;
+    const closeTime = window.prompt("Close time", r.close_time) ?? r.close_time;
+    const { error } = await supabase
+      .from("checklist_reports")
+      .update({ signed_by: signed, open_time: openTime, close_time: closeTime })
+      .eq("id", r.id);
+    if (error) {
+      window.alert("แก้ไขไม่สำเร็จ: " + error.message);
+      return;
+    }
+    setReports((prev) =>
+      prev.map((x) =>
+        x.id === r.id ? { ...x, signed_by: signed, open_time: openTime, close_time: closeTime } : x,
+      ),
+    );
+  };
+
+  if (!unlocked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
+          <div className="flex flex-col items-center text-center mb-4">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+              <Lock className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-xl font-semibold">Reports — Restricted</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              ใส่รหัสผ่านเพื่อเข้าดูรีพอร์ท
+            </p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (pwInput === REPORT_PASSWORD) {
+                setUnlocked(true);
+                setPwError("");
+              } else {
+                setPwError("รหัสผ่านไม่ถูกต้อง");
+              }
+            }}
+            className="space-y-3"
+          >
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={pwInput}
+              onChange={(e) => setPwInput(e.target.value)}
+              placeholder="••••••"
+            />
+            {pwError && <p className="text-xs text-destructive">{pwError}</p>}
+            <Button type="submit" className="w-full">
+              เข้าสู่ระบบ
+            </Button>
+            <Button asChild variant="ghost" className="w-full">
+              <Link to="/daily">ย้อนกลับ</Link>
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
@@ -83,9 +226,7 @@ function ReportsPage() {
             <Wine className="h-3.5 w-3.5" />
             Bar Operations
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Report History
-          </h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Report History</h1>
           <p className="text-sm text-muted-foreground mt-2">
             Browse all past checklist submissions
           </p>
@@ -116,7 +257,24 @@ function ReportsPage() {
           </Link>
         </nav>
 
-        <div className="flex justify-center mb-6">
+        {/* Outlet selector — one file per outlet */}
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {OUTLETS.map((o) => (
+            <button
+              key={o}
+              onClick={() => setOutlet(o)}
+              className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                outlet === o
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card hover:bg-accent/40"
+              }`}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
               <TabsTrigger value="daily">Daily</TabsTrigger>
@@ -124,14 +282,23 @@ function ReportsPage() {
               <TabsTrigger value="yearly">Yearly</TabsTrigger>
             </TabsList>
           </Tabs>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadOutletCSV(outlet, filtered)}
+            disabled={filtered.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download {outlet}
+          </Button>
         </div>
 
         {loading ? (
           <p className="text-center text-muted-foreground py-12">Loading...</p>
-        ) : reports.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-12 rounded-2xl border bg-card">
             <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">No reports submitted yet.</p>
+            <p className="text-muted-foreground">ยังไม่มีรีพอร์ทของ {outlet}</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -146,39 +313,53 @@ function ReportsPage() {
                       key={r.id}
                       className="rounded-2xl border bg-card shadow-sm overflow-hidden"
                     >
-                      <button
-                        onClick={() => toggle(r.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/40 transition-colors"
-                      >
-                        {expanded[r.id] ? (
-                          <ChevronDown className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="font-semibold truncate">
-                              {r.outlet}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {r.report_date}
-                            </span>
+                      <div className="w-full flex items-center gap-2 px-4 py-3">
+                        <button
+                          onClick={() => toggle(r.id)}
+                          className="flex-1 flex items-center gap-3 text-left"
+                        >
+                          {expanded[r.id] ? (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
+                              <span className="font-semibold truncate">{r.outlet}</span>
+                              <span className="text-xs text-muted-foreground">{r.report_date}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              Signed by {r.signed_by}
+                              {r.open_time && ` · Open ${r.open_time}`}
+                              {r.close_time && ` · Close ${r.close_time}`}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            Signed by {r.signed_by}
-                            {r.open_time && ` · Open ${r.open_time}`}
-                            {r.close_time && ` · Close ${r.close_time}`}
-                          </p>
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-semibold tabular-nums">{r.percent}%</div>
+                            <div className="text-[10px] text-muted-foreground tabular-nums">
+                              {r.done_tasks}/{r.total_tasks}
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(r)}
+                            aria-label="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(r.id)}
+                            aria-label="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-semibold tabular-nums">
-                            {r.percent}%
-                          </div>
-                          <div className="text-[10px] text-muted-foreground tabular-nums">
-                            {r.done_tasks}/{r.total_tasks}
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
                           <TaskList title="Open Bar" tasks={r.open_tasks} />
@@ -194,9 +375,12 @@ function ReportsPage() {
           </div>
         )}
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex justify-center gap-2">
           <Button asChild variant="outline">
             <Link to="/daily">Back to checklist</Link>
+          </Button>
+          <Button variant="ghost" onClick={() => setUnlocked(false)}>
+            Lock
           </Button>
         </div>
       </div>
@@ -216,17 +400,9 @@ function TaskList({ title, tasks }: { title: string; tasks: Task[] }) {
           <li key={t.id} className="flex items-start gap-2 text-sm">
             <span className="mt-0.5">{t.done ? "✅" : "⬜"}</span>
             <div className="flex-1">
-              <p
-                className={
-                  t.done ? "line-through text-muted-foreground" : ""
-                }
-              >
-                {t.text}
-              </p>
+              <p className={t.done ? "line-through text-muted-foreground" : ""}>{t.text}</p>
               {t.remark && (
-                <p className="text-xs text-muted-foreground italic">
-                  {t.remark}
-                </p>
+                <p className="text-xs text-muted-foreground italic">{t.remark}</p>
               )}
             </div>
           </li>
