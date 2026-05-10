@@ -477,29 +477,37 @@ function RecipientsSection({
   recipients: string[];
   setRecipients: (r: string[]) => void;
 }) {
+  const [editMode, setEditMode] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
 
   const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 
+  const enableEdit = () => {
+    if (!requirePassword("edit", "ใส่รหัสผ่านเพื่อแก้ไขรายชื่ออีเมล")) return;
+    setEditMode(true);
+  };
+
+  const exitEdit = () => {
+    setEditMode(false);
+    setEditingIdx(null);
+  };
+
   const add = () => {
     const e = newEmail.trim();
     if (!isEmail(e)) return toast.error("Invalid email");
     if (recipients.length >= 5) return toast.error("Maximum 5 emails allowed");
     if (recipients.includes(e)) return toast.error("Email already added");
-    if (!requirePassword()) return;
     setRecipients([...recipients, e]);
     setNewEmail("");
   };
 
   const remove = (i: number) => {
-    if (!requirePassword()) return;
     setRecipients(recipients.filter((_, idx) => idx !== i));
   };
 
   const startEdit = (i: number) => {
-    if (!requirePassword()) return;
     setEditingIdx(i);
     setEditValue(recipients[i]);
   };
@@ -514,16 +522,37 @@ function RecipientsSection({
 
   return (
     <section className="rounded-2xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Mail className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-base font-semibold">Recipient Emails</h2>
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {recipients.length}/5
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {editMode ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => changePassword("edit")}
+              >
+                <KeyRound className="h-4 w-4 mr-1" />
+                Password
+              </Button>
+              <Button size="sm" variant="secondary" onClick={exitEdit}>
+                <Check className="h-4 w-4 mr-1" />
+                Done
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={enableEdit}>
+              <Settings2 className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground mb-3">
-        Up to 5 recipients.
-      </p>
+      <p className="text-xs text-muted-foreground mb-3">Up to 5 recipients.</p>
 
       <ul className="space-y-2 mb-3">
         {recipients.length === 0 && (
@@ -536,7 +565,7 @@ function RecipientsSection({
             key={i}
             className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2"
           >
-            {editingIdx === i ? (
+            {editMode && editingIdx === i ? (
               <>
                 <Input
                   autoFocus
@@ -558,31 +587,35 @@ function RecipientsSection({
             ) : (
               <>
                 <span className="flex-1 min-w-0 text-sm break-all">{r}</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => startEdit(i)}
-                  aria-label="Edit"
-                  className="shrink-0"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => remove(i)}
-                  aria-label="Remove"
-                  className="shrink-0 text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {editMode && (
+                  <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => startEdit(i)}
+                      aria-label="Edit"
+                      className="shrink-0"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => remove(i)}
+                      aria-label="Remove"
+                      className="shrink-0 text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </li>
         ))}
       </ul>
 
-      {recipients.length < 5 && (
+      {editMode && recipients.length < 5 && (
         <div className="flex gap-2">
           <Input
             type="email"
@@ -600,3 +633,4 @@ function RecipientsSection({
     </section>
   );
 }
+
