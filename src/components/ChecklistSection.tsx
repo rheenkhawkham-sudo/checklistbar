@@ -1,8 +1,19 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  ArrowUp,
+  ArrowDown,
+  Settings2,
+  KeyRound,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { requirePassword, changePassword } from "@/lib/passwords";
 
 export interface Task {
   id: string;
@@ -25,10 +36,27 @@ const VARIANT_CLASSES: Record<NonNullable<Props["variant"]>, string> = {
   close: "border-amber-500/50 bg-amber-500/5",
 };
 
-export function ChecklistSection({ title, tasks, onChange, variant = "default", headerExtra }: Props) {
+export function ChecklistSection({
+  title,
+  tasks,
+  onChange,
+  variant = "default",
+  headerExtra,
+}: Props) {
+  const [editMode, setEditMode] = useState(false);
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+
+  const enableEdit = () => {
+    if (!requirePassword("edit", "ใส่รหัสผ่านเพื่อแก้ไขรายการ")) return;
+    setEditMode(true);
+  };
+
+  const exitEdit = () => {
+    setEditMode(false);
+    setEditingId(null);
+  };
 
   const add = () => {
     const t = newText.trim();
@@ -45,35 +73,18 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
   const setRemark = (id: string, remark: string) =>
     onChange(tasks.map((t) => (t.id === id ? { ...t, remark } : t)));
 
-  const requirePassword = () => {
-    const pw = window.prompt("กรุณาใส่รหัสผ่านเพื่อดำเนินการ");
-    if (pw === null) return false;
-    if (pw !== "0000") {
-      window.alert("รหัสผ่านไม่ถูกต้อง");
-      return false;
-    }
-    return true;
-  };
-
-  const startEdit = (t: Task) => {
-    if (!requirePassword()) return;
-    setEditingId(t.id);
-    setEditText(t.text);
-  };
-
-  const tryRemove = (id: string) => {
-    if (!requirePassword()) return;
-    remove(id);
-  };
-
   const move = (id: string, dir: -1 | 1) => {
-    if (!requirePassword()) return;
     const idx = tasks.findIndex((t) => t.id === id);
     const next = idx + dir;
     if (idx < 0 || next < 0 || next >= tasks.length) return;
     const copy = tasks.slice();
     [copy[idx], copy[next]] = [copy[next], copy[idx]];
     onChange(copy);
+  };
+
+  const startEdit = (t: Task) => {
+    setEditingId(t.id);
+    setEditText(t.text);
   };
 
   const saveEdit = () => {
@@ -88,33 +99,61 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
 
   return (
     <div className={`rounded-2xl border p-5 shadow-sm ${VARIANT_CLASSES[variant]}`}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {done} / {tasks.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {done} / {tasks.length}
+          </span>
+          {editMode ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => changePassword("edit")}
+                title="เปลี่ยนรหัสผ่าน"
+              >
+                <KeyRound className="h-4 w-4 mr-1" />
+                Password
+              </Button>
+              <Button size="sm" variant="secondary" onClick={exitEdit}>
+                <Check className="h-4 w-4 mr-1" />
+                Done
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={enableEdit}>
+              <Settings2 className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
       </div>
 
       {headerExtra && <div className="mb-4">{headerExtra}</div>}
 
-      <div className="flex gap-2 mb-4">
-        <Input
-          placeholder="Add a new task..."
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-          maxLength={300}
-        />
-        <Button size="icon" onClick={add} aria-label="Add task">
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+      {editMode && (
+        <div className="flex gap-2 mb-4">
+          <Input
+            placeholder="Add a new task..."
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            maxLength={300}
+          />
+          <Button size="icon" onClick={add} aria-label="Add task">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <ul className="space-y-2">
         {tasks.length === 0 && (
-          <li className="text-sm text-muted-foreground text-center py-6">No tasks yet. Add one above.</li>
+          <li className="text-sm text-muted-foreground text-center py-6">
+            No tasks yet.{editMode ? " Add one above." : ""}
+          </li>
         )}
-        {tasks.map((t) => (
+        {tasks.map((t, idx) => (
           <li
             key={t.id}
             className="group rounded-lg border bg-background px-3 py-2 hover:bg-accent/40 transition-colors space-y-2"
@@ -125,7 +164,7 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                 onCheckedChange={() => toggle(t.id)}
                 className="h-5 w-5 mt-0.5 shrink-0"
               />
-              {editingId === t.id ? (
+              {editMode && editingId === t.id ? (
                 <>
                   <Input
                     autoFocus
@@ -153,44 +192,48 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                   >
                     {t.text}
                   </span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
-                    onClick={() => move(t.id, -1)}
-                    aria-label="Move up"
-                    disabled={tasks.indexOf(t) === 0}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
-                    onClick={() => move(t.id, 1)}
-                    aria-label="Move down"
-                    disabled={tasks.indexOf(t) === tasks.length - 1}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
-                    onClick={() => startEdit(t)}
-                    aria-label="Edit"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-destructive shrink-0"
-                    onClick={() => tryRemove(t.id)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {editMode && (
+                    <>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => move(t.id, -1)}
+                        aria-label="Move up"
+                        disabled={idx === 0}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => move(t.id, 1)}
+                        aria-label="Move down"
+                        disabled={idx === tasks.length - 1}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => startEdit(t)}
+                        aria-label="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-destructive"
+                        onClick={() => remove(t.id)}
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </div>
