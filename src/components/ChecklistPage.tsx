@@ -266,17 +266,39 @@ export function ChecklistPage({ mode }: Props) {
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      // Clear data for EVERY outlet so the next round starts fresh everywhere.
-      const fresh = DEFAULT_DATA();
+      // Reset only the "done" checkmarks for EVERY outlet — keep all
+      // user-added/edited task headings intact for the next round.
+      const resetTasks = (arr: Task[]): Task[] =>
+        arr.map((x) => ({ ...x, done: false }));
       pendingDataPushRef.current = true;
       try {
+        const { data: rows } = await supabase
+          .from("app_state")
+          .select("key,value")
+          .in(
+            "key",
+            OUTLETS.map((o) => STATE_KEY_OUTLET(o)),
+          );
+        const map = new Map((rows ?? []).map((r) => [r.key, r.value]));
         await Promise.all(
-          OUTLETS.map((o) => pushState(STATE_KEY_OUTLET(o), fresh)),
+          OUTLETS.map((o) => {
+            const cur = {
+              ...DEFAULT_DATA(),
+              ...((map.get(STATE_KEY_OUTLET(o)) ?? {}) as Partial<OutletData>),
+            };
+            const cleared: OutletData = {
+              ...cur,
+              open: resetTasks(cur.open),
+              close: resetTasks(cur.close),
+              monthly: resetTasks(cur.monthly),
+            };
+            if (o === outlet) setData(cleared);
+            return pushState(STATE_KEY_OUTLET(o), cleared);
+          }),
         );
       } finally {
         pendingDataPushRef.current = false;
       }
-      setData(fresh);
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
