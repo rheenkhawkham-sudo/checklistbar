@@ -376,7 +376,12 @@ export function ChecklistPage({ mode }: Props) {
               close: resetTasks(cur.close),
               monthly: resetTasks(cur.monthly),
             };
-            if (o === outlet) setData(cleared);
+            if (o === outlet) {
+              setData(cleared);
+              lastSyncedDataCanonRef.current = canon(cleared);
+              // skip the debounced push effect for this synthetic update
+              dataInitRef.current = true;
+            }
             return pushState(STATE_KEY_OUTLET(o), cleared);
           }),
         );
