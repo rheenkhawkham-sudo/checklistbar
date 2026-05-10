@@ -64,7 +64,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
 
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
     const modeLabel =
-      data.mode === "daily" ? "Daily" : data.mode === "monthly" ? "Monthly" : "Daily + Monthly";
+      data.mode === "daily" ? "Daily" : data.mode === "monthly" ? "Weekly Cleaning" : "Daily + Weekly Cleaning";
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#222">
