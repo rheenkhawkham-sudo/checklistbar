@@ -465,6 +465,20 @@ export function ChecklistPage({ mode }: Props) {
   const updateMeta = (patch: Partial<Pick<LocalWork, "signedBy" | "reportDate" | "openTime" | "closeTime">>) =>
     setWork((w) => ({ ...w, ...patch }));
 
+  // Compat wrapper for the existing JSX: routes meta-field updates and
+  // section (open/close/monthly Task[]) updates to the right reducer.
+  const update = (patch: Partial<OutletData>) => {
+    if (patch.open) applySectionUpdate("open", patch.open);
+    if (patch.close) applySectionUpdate("close", patch.close);
+    if (patch.monthly) applySectionUpdate("monthly", patch.monthly);
+    const meta: Partial<Pick<LocalWork, "signedBy" | "reportDate" | "openTime" | "closeTime">> = {};
+    if (patch.signedBy !== undefined) meta.signedBy = patch.signedBy;
+    if (patch.reportDate !== undefined) meta.reportDate = patch.reportDate;
+    if (patch.openTime !== undefined) meta.openTime = patch.openTime;
+    if (patch.closeTime !== undefined) meta.closeTime = patch.closeTime;
+    if (Object.keys(meta).length > 0) updateMeta(meta);
+  };
+
   const dailyAll = useMemo(() => [...data.open, ...data.close], [data.open, data.close]);
   const openP = useMemo(() => pct(data.open), [data.open]);
   const closeP = useMemo(() => pct(data.close), [data.close]);
