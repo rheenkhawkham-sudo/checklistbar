@@ -434,7 +434,7 @@ function TaskList({ title, tasks }: { title: string; tasks: Task[] }) {
           <li key={task.id} className="flex items-start gap-2 text-sm">
             <span className="mt-0.5">{task.done ? "✅" : "⬜"}</span>
             <div className="flex-1">
-              <p className={task.done ? "line-through text-muted-foreground" : ""}>{tTask(task.text)}</p>
+              <p>{tTask(task.text)}</p>
               {task.remark && (
                 <p className="text-xs text-muted-foreground italic">{task.remark}</p>
               )}

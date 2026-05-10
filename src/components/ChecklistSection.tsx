@@ -207,11 +207,7 @@ export function ChecklistSection({
                 </>
               ) : (
                 <>
-                  <span
-                    className={`flex-1 min-w-0 text-sm break-words whitespace-pre-wrap ${
-                      task.done ? "line-through text-muted-foreground" : ""
-                    }`}
-                  >
+                  <span className="flex-1 min-w-0 text-sm break-words whitespace-pre-wrap">
                     {tTask(task.text)}
                   </span>
                   {editMode && (
