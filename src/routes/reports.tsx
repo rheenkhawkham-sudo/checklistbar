@@ -211,7 +211,7 @@ function ReportsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (pwInput === REPORT_PASSWORD) {
+              if (pwInput === getPassword("reports")) {
                 setUnlocked(true);
                 setPwError("");
               } else {
