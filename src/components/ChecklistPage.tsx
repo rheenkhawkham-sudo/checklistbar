@@ -262,7 +262,7 @@ export function ChecklistPage({ mode }: Props) {
                 "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
             }}
           >
-            Monthly
+            Weekly Cleaning
           </Link>
           <Link
             to="/reports"
