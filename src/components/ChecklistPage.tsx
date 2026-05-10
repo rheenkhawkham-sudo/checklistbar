@@ -396,7 +396,7 @@ export function ChecklistPage({ mode }: Props) {
                   </div>
                 </div>
                 <ChecklistSection
-                  title="Monthly Tasks"
+                  title="Weekly Cleaning"
                   tasks={data.monthly}
                   onChange={(monthly) => update({ monthly })}
                 />
