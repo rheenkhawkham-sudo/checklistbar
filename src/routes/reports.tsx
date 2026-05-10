@@ -362,7 +362,7 @@ function ReportsPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
               <TabsTrigger value="daily">{t("daily")}</TabsTrigger>
@@ -378,6 +378,89 @@ function ReportsPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             {t("download", { outlet: outletLabel(outlet) })}
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn(!dateRange?.from && "text-muted-foreground")}>
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "PP")} – {format(dateRange.to, "PP")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "PP")
+                  )
+                ) : (
+                  t("pickDateRange")
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={1}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          {dateRange?.from && (
+            <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)}>
+              <X className="h-4 w-4 mr-1" /> {t("clearRange")}
+            </Button>
+          )}
+          <div className="flex-1" />
+          {!selectMode ? (
+            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} disabled={filtered.length === 0}>
+              <CheckSquare className="h-4 w-4 mr-2" />
+              {t("selectMode")}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set(filtered.map((r) => r.id)))}
+              >
+                {t("selectAll")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                {t("clearSelection")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => deleteIds(Array.from(selectedIds))}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {t("deleteSelected", { n: String(selectedIds.size) })}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectMode(false);
+                  setSelectedIds(new Set());
+                }}
+              >
+                {t("cancelSelect")}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteAll}
+            disabled={filtered.length === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {t("deleteAll")}
           </Button>
         </div>
 
