@@ -194,10 +194,84 @@ const TASK_PAIRS: Array<[string, string]> = [
 const TASK_EN_TO_TH = new Map(TASK_PAIRS);
 const TASK_TH_TO_EN = new Map(TASK_PAIRS.map(([e, th]) => [th, e]));
 
+const THAI_RE = /[\u0E00-\u0E7F]/;
+const CACHE_KEY = "app:taskTranslations:v1";
+
+type CacheShape = { th: Record<string, string> };
+const cache: CacheShape = { th: {} };
+let cacheLoaded = false;
+function loadCache() {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.th && typeof parsed.th === "object") cache.th = parsed.th;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+function saveCache() {
+  try {
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* ignore */
+  }
+}
+
+const pending = new Set<string>();
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const subscribers = new Set<() => void>();
+function notify() {
+  for (const fn of subscribers) fn();
+}
+
+async function flushPending() {
+  flushTimer = null;
+  if (pending.size === 0) return;
+  const batch = Array.from(pending).slice(0, 50);
+  for (const t of batch) pending.delete(t);
+  try {
+    const mod = await import("@/lib/translate.functions");
+    const { data } = await mod.translateTexts({ data: { texts: batch, target: "th" } });
+    const translations = (data as { translations: string[] }).translations;
+    batch.forEach((src, i) => {
+      const out = translations[i];
+      if (out && out.trim()) cache.th[src] = out.trim();
+    });
+    saveCache();
+    notify();
+  } catch {
+    /* leave untranslated; will retry on next request */
+  }
+  if (pending.size > 0 && !flushTimer) {
+    flushTimer = setTimeout(flushPending, 250);
+  }
+}
+
+function scheduleTranslate(text: string) {
+  if (pending.has(text)) return;
+  pending.add(text);
+  if (!flushTimer) flushTimer = setTimeout(flushPending, 200);
+}
+
 export function translateTaskText(text: string, lang: Lang): string {
   if (!text) return text;
-  if (lang === "th") return TASK_EN_TO_TH.get(text) ?? text;
-  return TASK_TH_TO_EN.get(text) ?? text;
+  if (lang === "en") {
+    // Only translate built-in default Thai → EN; user-added text stays as-is
+    return TASK_TH_TO_EN.get(text) ?? text;
+  }
+  // lang === "th"
+  const known = TASK_EN_TO_TH.get(text);
+  if (known) return known;
+  if (THAI_RE.test(text)) return text;
+  loadCache();
+  const cached = cache.th[text];
+  if (cached) return cached;
+  scheduleTranslate(text);
+  return text;
 }
 
 interface I18nCtx {
