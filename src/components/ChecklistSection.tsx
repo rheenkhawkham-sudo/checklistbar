@@ -143,17 +143,28 @@ export function ChecklistSection({
       {headerExtra && <div className="mb-4">{headerExtra}</div>}
 
       {editMode && (
-        <div className="flex gap-2 mb-4">
-          <Input
-            placeholder={t("addTask")}
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-            maxLength={300}
-          />
-          <Button size="icon" onClick={add} aria-label={t("addTask")}>
-            <Plus className="h-4 w-4" />
-          </Button>
+        <div className="mb-4 space-y-1">
+          <div className="flex gap-2">
+            <Input
+              placeholder={t("addTask")}
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && add()}
+              maxLength={300}
+              disabled={tasks.length >= MAX_TASKS}
+            />
+            <Button
+              size="icon"
+              onClick={add}
+              aria-label={t("addTask")}
+              disabled={tasks.length >= MAX_TASKS}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground tabular-nums text-right">
+            {tasks.length} / {MAX_TASKS}
+          </div>
         </div>
       )}
 
