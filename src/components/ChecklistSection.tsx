@@ -194,7 +194,7 @@ export function ChecklistSection({
                       task.done ? "line-through text-muted-foreground" : ""
                     }`}
                   >
-                    {task.text}
+                    {tTask(task.text)}
                   </span>
                   {editMode && (
                     <>
