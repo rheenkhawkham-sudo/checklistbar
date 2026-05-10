@@ -92,7 +92,37 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  const localWriteRef = useRef<{ [k: string]: string }>({});
+  // Canonical JSON (sorted keys) — jsonb roundtrips don't preserve key order,
+  // so naive stringify comparisons mis-detect "remote vs local" and overwrite
+  // optimistic UI updates (e.g. a checkbox tick disappearing).
+  const canon = (v: unknown): string => {
+    if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+    if (v && typeof v === "object") {
+      const keys = Object.keys(v as Record<string, unknown>).sort();
+      return (
+        "{" +
+        keys.map((k) => JSON.stringify(k) + ":" + canon((v as Record<string, unknown>)[k])).join(",") +
+        "}"
+      );
+    }
+    return JSON.stringify(v);
+  };
+
+  const dataRef = useRef<OutletData>(data);
+  const outletRef = useRef<Outlet>(outlet);
+  const recipientsRef = useRef<string[]>(recipients);
+  const pendingDataPushRef = useRef(false);
+  const pendingRecPushRef = useRef(false);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+  useEffect(() => {
+    outletRef.current = outlet;
+  }, [outlet]);
+  useEffect(() => {
+    recipientsRef.current = recipients;
+  }, [recipients]);
 
   useEffect(() => {
     let active = true;
@@ -117,24 +147,21 @@ export function ChecklistPage({ mode }: Props) {
         (payload) => {
           const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
           if (!row) return;
-          const stamp = JSON.stringify(row.value);
-          if (localWriteRef.current[row.key] === stamp) {
-            delete localWriteRef.current[row.key];
-            return;
-          }
           if (row.key === STATE_KEY_CURRENT) {
             const v = row.value as Outlet;
-            if ((OUTLETS as readonly string[]).includes(v)) setOutlet(v);
+            if ((OUTLETS as readonly string[]).includes(v) && v !== outletRef.current) {
+              setOutlet(v);
+            }
           } else if (row.key === STATE_KEY_RECIPIENTS) {
-            setRecipients(Array.isArray(row.value) ? (row.value as string[]) : []);
+            if (pendingRecPushRef.current) return;
+            const next = Array.isArray(row.value) ? (row.value as string[]) : [];
+            if (canon(next) !== canon(recipientsRef.current)) setRecipients(next);
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
-            setOutlet((cur) => {
-              if (o === cur) {
-                setData({ ...DEFAULT_DATA(), ...((row.value ?? {}) as Partial<OutletData>) });
-              }
-              return cur;
-            });
+            if (o !== outletRef.current) return;
+            if (pendingDataPushRef.current) return;
+            const merged = { ...DEFAULT_DATA(), ...((row.value ?? {}) as Partial<OutletData>) };
+            if (canon(merged) !== canon(dataRef.current)) setData(merged);
           }
         },
       )
@@ -152,7 +179,6 @@ export function ChecklistPage({ mode }: Props) {
       outletInitRef.current = false;
       return;
     }
-    localWriteRef.current[STATE_KEY_CURRENT] = JSON.stringify(outlet);
     pushState(STATE_KEY_CURRENT, outlet);
     (async () => {
       const { data: row } = await supabase
@@ -171,9 +197,15 @@ export function ChecklistPage({ mode }: Props) {
       return;
     }
     const key = STATE_KEY_OUTLET(outlet);
-    const stamp = JSON.stringify(data);
-    localWriteRef.current[key] = stamp;
-    const tm = setTimeout(() => pushState(key, data), 250);
+    const snapshot = data;
+    pendingDataPushRef.current = true;
+    const tm = setTimeout(async () => {
+      try {
+        await pushState(key, snapshot);
+      } finally {
+        pendingDataPushRef.current = false;
+      }
+    }, 250);
     return () => clearTimeout(tm);
   }, [data, outlet]);
 
@@ -183,8 +215,10 @@ export function ChecklistPage({ mode }: Props) {
       recInitRef.current = false;
       return;
     }
-    localWriteRef.current[STATE_KEY_RECIPIENTS] = JSON.stringify(recipients);
-    pushState(STATE_KEY_RECIPIENTS, recipients);
+    pendingRecPushRef.current = true;
+    pushState(STATE_KEY_RECIPIENTS, recipients).finally(() => {
+      pendingRecPushRef.current = false;
+    });
   }, [recipients]);
 
   const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
