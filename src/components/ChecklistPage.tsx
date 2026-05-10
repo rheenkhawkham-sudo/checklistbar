@@ -224,13 +224,57 @@ export function ChecklistPage({ mode }: Props) {
             const remoteCanon = canon(merged);
             if (remoteCanon === lastSyncedDataCanonRef.current) return; // echo
             const localCanon = canon(dataRef.current);
-            if (localCanon !== lastSyncedDataCanonRef.current) {
-              // user is in the middle of typing/ticking — local wins, our
-              // pending push will overwrite remote shortly.
+            if (localCanon === lastSyncedDataCanonRef.current) {
+              // No local edits pending — adopt remote as-is
+              setData(merged);
               lastSyncedDataCanonRef.current = remoteCanon;
               return;
             }
-            setData(merged);
+            // Local has unpushed edits. Do a field-level merge so concurrent
+            // device edits don't clobber each other:
+            //  - Task headings/order/membership: take remote (heading edits)
+            //  - Per-task done/remark: prefer local if local toggled it
+            //  - signedBy/openTime/closeTime/reportDate: keep local if non-empty
+            const local = dataRef.current;
+            const lastSynced = (() => {
+              try {
+                return JSON.parse(lastSyncedDataCanonRef.current || "{}") as Partial<OutletData>;
+              } catch {
+                return {} as Partial<OutletData>;
+              }
+            })();
+            const mergeTasks = (rTasks: Task[], lTasks: Task[], baseTasks?: Task[]): Task[] => {
+              const lMap = new Map(lTasks.map((x) => [x.id, x]));
+              const bMap = new Map((baseTasks ?? []).map((x) => [x.id, x]));
+              return rTasks.map((rt) => {
+                const lt = lMap.get(rt.id);
+                if (!lt) return rt;
+                const bt = bMap.get(rt.id);
+                // If local diverged from base for done/remark, prefer local
+                const doneChangedLocally = bt ? lt.done !== bt.done : true;
+                const remarkChangedLocally = bt ? (lt.remark ?? "") !== (bt.remark ?? "") : (lt.remark ?? "") !== "";
+                return {
+                  ...rt,
+                  done: doneChangedLocally ? lt.done : rt.done,
+                  remark: remarkChangedLocally ? (lt.remark ?? "") : (rt.remark ?? ""),
+                };
+              });
+            };
+            const fieldChanged = <K extends keyof OutletData>(k: K) =>
+              (local[k] ?? "") !== ((lastSynced[k] as OutletData[K] | undefined) ?? "");
+            const next: OutletData = {
+              ...merged,
+              open: mergeTasks(merged.open, local.open, lastSynced.open),
+              close: mergeTasks(merged.close, local.close, lastSynced.close),
+              monthly: mergeTasks(merged.monthly, local.monthly, lastSynced.monthly),
+              signedBy: fieldChanged("signedBy") ? local.signedBy : merged.signedBy,
+              openTime: fieldChanged("openTime") ? local.openTime : merged.openTime,
+              closeTime: fieldChanged("closeTime") ? local.closeTime : merged.closeTime,
+              reportDate: fieldChanged("reportDate") ? local.reportDate : merged.reportDate,
+            };
+            setData(next);
+            // The pending push effect will sync `next` shortly; mark remote
+            // canon as seen so we don't re-process this echo.
             lastSyncedDataCanonRef.current = remoteCanon;
           }
         },
