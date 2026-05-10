@@ -398,9 +398,13 @@ function ReportsPage() {
           </div>
         )}
 
-        <div className="mt-8 flex justify-center gap-2">
+        <div className="mt-8 flex flex-wrap justify-center gap-2">
           <Button asChild variant="outline">
             <Link to="/daily">Back to checklist</Link>
+          </Button>
+          <Button variant="outline" onClick={() => changePassword("reports")}>
+            <KeyRound className="h-4 w-4 mr-2" />
+            Change password
           </Button>
           <Button variant="ghost" onClick={() => setUnlocked(false)}>
             Lock
