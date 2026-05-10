@@ -167,11 +167,11 @@ export function ChecklistPage({ mode }: Props) {
           const restored: OutletData = {
             ...DEFAULT_DATA(),
             ...(od ?? {}),
-            open: resetDone((report.open_tasks ?? []) as Task[]),
-            close: resetDone((report.close_tasks ?? []) as Task[]),
-            monthly: resetDone((report.monthly_tasks ?? []) as Task[]),
+            open: resetDone((report.open_tasks ?? []) as unknown as Task[]),
+            close: resetDone((report.close_tasks ?? []) as unknown as Task[]),
+            monthly: resetDone((report.monthly_tasks ?? []) as unknown as Task[]),
           };
-          map.set(STATE_KEY_OUTLET(o), restored);
+          map.set(STATE_KEY_OUTLET(o), restored as unknown as never);
           await pushState(STATE_KEY_OUTLET(o), restored);
         }),
       );
