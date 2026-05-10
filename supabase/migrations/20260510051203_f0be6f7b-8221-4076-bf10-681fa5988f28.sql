@@ -1,0 +1,2 @@
+CREATE POLICY "Anyone can update reports" ON public.checklist_reports FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone can delete reports" ON public.checklist_reports FOR DELETE USING (true);
