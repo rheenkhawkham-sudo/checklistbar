@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { requirePassword, changePassword } from "@/lib/passwords";
+import { useI18n } from "@/lib/i18n";
+import { usePasswords } from "@/lib/usePasswords";
 
 export interface Task {
   id: string;
@@ -43,13 +44,15 @@ export function ChecklistSection({
   variant = "default",
   headerExtra,
 }: Props) {
+  const { t } = useI18n();
+  const { requirePassword, changePassword } = usePasswords();
   const [editMode, setEditMode] = useState(false);
   const [newText, setNewText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
   const enableEdit = () => {
-    if (!requirePassword("edit", "ใส่รหัสผ่านเพื่อแก้ไขรายการ")) return;
+    if (!requirePassword("edit", "enterToEditTasks")) return;
     setEditMode(true);
   };
 
@@ -59,22 +62,22 @@ export function ChecklistSection({
   };
 
   const add = () => {
-    const t = newText.trim();
-    if (!t) return;
-    onChange([...tasks, { id: crypto.randomUUID(), text: t, done: false, remark: "" }]);
+    const txt = newText.trim();
+    if (!txt) return;
+    onChange([...tasks, { id: crypto.randomUUID(), text: txt, done: false, remark: "" }]);
     setNewText("");
   };
 
   const toggle = (id: string) =>
-    onChange(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    onChange(tasks.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
 
-  const remove = (id: string) => onChange(tasks.filter((t) => t.id !== id));
+  const remove = (id: string) => onChange(tasks.filter((x) => x.id !== id));
 
   const setRemark = (id: string, remark: string) =>
-    onChange(tasks.map((t) => (t.id === id ? { ...t, remark } : t)));
+    onChange(tasks.map((x) => (x.id === id ? { ...x, remark } : x)));
 
   const move = (id: string, dir: -1 | 1) => {
-    const idx = tasks.findIndex((t) => t.id === id);
+    const idx = tasks.findIndex((x) => x.id === id);
     const next = idx + dir;
     if (idx < 0 || next < 0 || next >= tasks.length) return;
     const copy = tasks.slice();
@@ -82,20 +85,20 @@ export function ChecklistSection({
     onChange(copy);
   };
 
-  const startEdit = (t: Task) => {
-    setEditingId(t.id);
-    setEditText(t.text);
+  const startEdit = (task: Task) => {
+    setEditingId(task.id);
+    setEditText(task.text);
   };
 
   const saveEdit = () => {
     if (!editingId) return;
-    const t = editText.trim();
-    if (!t) return;
-    onChange(tasks.map((x) => (x.id === editingId ? { ...x, text: t } : x)));
+    const txt = editText.trim();
+    if (!txt) return;
+    onChange(tasks.map((x) => (x.id === editingId ? { ...x, text: txt } : x)));
     setEditingId(null);
   };
 
-  const done = tasks.filter((t) => t.done).length;
+  const doneCount = tasks.filter((x) => x.done).length;
 
   return (
     <div className={`rounded-2xl border p-5 shadow-sm ${VARIANT_CLASSES[variant]}`}>
@@ -103,7 +106,7 @@ export function ChecklistSection({
         <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground tabular-nums">
-            {done} / {tasks.length}
+            {doneCount} / {tasks.length}
           </span>
           {editMode ? (
             <>
@@ -111,20 +114,20 @@ export function ChecklistSection({
                 size="sm"
                 variant="outline"
                 onClick={() => changePassword("edit")}
-                title="เปลี่ยนรหัสผ่าน"
+                title={t("changePassword")}
               >
                 <KeyRound className="h-4 w-4 mr-1" />
-                Password
+                {t("password")}
               </Button>
               <Button size="sm" variant="secondary" onClick={exitEdit}>
                 <Check className="h-4 w-4 mr-1" />
-                Done
+                {t("done")}
               </Button>
             </>
           ) : (
             <Button size="sm" variant="outline" onClick={enableEdit}>
               <Settings2 className="h-4 w-4 mr-1" />
-              Edit
+              {t("edit")}
             </Button>
           )}
         </div>
@@ -135,13 +138,13 @@ export function ChecklistSection({
       {editMode && (
         <div className="flex gap-2 mb-4">
           <Input
-            placeholder="Add a new task..."
+            placeholder={t("addTask")}
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && add()}
             maxLength={300}
           />
-          <Button size="icon" onClick={add} aria-label="Add task">
+          <Button size="icon" onClick={add} aria-label={t("addTask")}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -150,21 +153,22 @@ export function ChecklistSection({
       <ul className="space-y-2">
         {tasks.length === 0 && (
           <li className="text-sm text-muted-foreground text-center py-6">
-            No tasks yet.{editMode ? " Add one above." : ""}
+            {t("noTasks")}
+            {editMode ? t("addOneAbove") : ""}
           </li>
         )}
-        {tasks.map((t, idx) => (
+        {tasks.map((task, idx) => (
           <li
-            key={t.id}
+            key={task.id}
             className="group rounded-lg border bg-background px-3 py-2 hover:bg-accent/40 transition-colors space-y-2"
           >
             <div className="flex items-start gap-3">
               <Checkbox
-                checked={t.done}
-                onCheckedChange={() => toggle(t.id)}
+                checked={task.done}
+                onCheckedChange={() => toggle(task.id)}
                 className="h-5 w-5 mt-0.5 shrink-0"
               />
-              {editMode && editingId === t.id ? (
+              {editMode && editingId === task.id ? (
                 <>
                   <Input
                     autoFocus
@@ -187,10 +191,10 @@ export function ChecklistSection({
                 <>
                   <span
                     className={`flex-1 min-w-0 text-sm break-words whitespace-pre-wrap ${
-                      t.done ? "line-through text-muted-foreground" : ""
+                      task.done ? "line-through text-muted-foreground" : ""
                     }`}
                   >
-                    {t.text}
+                    {task.text}
                   </span>
                   {editMode && (
                     <>
@@ -198,8 +202,8 @@ export function ChecklistSection({
                         size="icon"
                         variant="ghost"
                         className="shrink-0"
-                        onClick={() => move(t.id, -1)}
-                        aria-label="Move up"
+                        onClick={() => move(task.id, -1)}
+                        aria-label={t("moveUp")}
                         disabled={idx === 0}
                       >
                         <ArrowUp className="h-4 w-4" />
@@ -208,8 +212,8 @@ export function ChecklistSection({
                         size="icon"
                         variant="ghost"
                         className="shrink-0"
-                        onClick={() => move(t.id, 1)}
-                        aria-label="Move down"
+                        onClick={() => move(task.id, 1)}
+                        aria-label={t("moveDown")}
                         disabled={idx === tasks.length - 1}
                       >
                         <ArrowDown className="h-4 w-4" />
@@ -218,8 +222,8 @@ export function ChecklistSection({
                         size="icon"
                         variant="ghost"
                         className="shrink-0"
-                        onClick={() => startEdit(t)}
-                        aria-label="Edit"
+                        onClick={() => startEdit(task)}
+                        aria-label={t("editAria")}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -227,8 +231,8 @@ export function ChecklistSection({
                         size="icon"
                         variant="ghost"
                         className="shrink-0 text-destructive"
-                        onClick={() => remove(t.id)}
-                        aria-label="Delete"
+                        onClick={() => remove(task.id)}
+                        aria-label={t("deleteAria")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -237,11 +241,11 @@ export function ChecklistSection({
                 </>
               )}
             </div>
-            {editingId !== t.id && (
+            {editingId !== task.id && (
               <Input
-                placeholder="Remark..."
-                value={t.remark ?? ""}
-                onChange={(e) => setRemark(t.id, e.target.value)}
+                placeholder={t("remark")}
+                value={task.remark ?? ""}
+                onChange={(e) => setRemark(task.id, e.target.value)}
                 maxLength={300}
                 className="h-9 w-full text-sm"
               />
