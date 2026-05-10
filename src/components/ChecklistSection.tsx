@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -64,6 +64,16 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
   const tryRemove = (id: string) => {
     if (!requirePassword()) return;
     remove(id);
+  };
+
+  const move = (id: string, dir: -1 | 1) => {
+    if (!requirePassword()) return;
+    const idx = tasks.findIndex((t) => t.id === id);
+    const next = idx + dir;
+    if (idx < 0 || next < 0 || next >= tasks.length) return;
+    const copy = tasks.slice();
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    onChange(copy);
   };
 
   const saveEdit = () => {
@@ -143,6 +153,26 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                   >
                     {t.text}
                   </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                    onClick={() => move(t.id, -1)}
+                    aria-label="Move up"
+                    disabled={tasks.indexOf(t) === 0}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                    onClick={() => move(t.id, 1)}
+                    aria-label="Move down"
+                    disabled={tasks.indexOf(t) === tasks.length - 1}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
                   <Button
                     size="icon"
                     variant="ghost"
