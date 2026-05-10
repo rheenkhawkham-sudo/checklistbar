@@ -475,11 +475,31 @@ function ReportsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {groups.map(([groupKey, items]) => (
+            {groups.map(([groupKey, items]) => {
+              const allSelected = selectMode && items.every((r) => selectedIds.has(r.id));
+              return (
               <section key={groupKey}>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
-                  {groupKey} <span className="text-xs">({items.length})</span>
-                </h2>
+                <div className="flex items-center justify-between mb-2 px-1 gap-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    {groupKey} <span className="text-xs">({items.length})</span>
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    {selectMode && (
+                      <Button variant="ghost" size="sm" onClick={() => selectGroup(items)}>
+                        {allSelected ? t("clearSelection") : t("selectAll")}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => deleteIds(items.map((r) => r.id))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      {t("deleteGroup")}
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   {items.map((r) => (
                     <article
@@ -487,6 +507,13 @@ function ReportsPage() {
                       className="rounded-2xl border bg-card shadow-sm overflow-hidden"
                     >
                       <div className="w-full flex items-center gap-2 px-4 py-3">
+                        {selectMode && (
+                          <Checkbox
+                            checked={selectedIds.has(r.id)}
+                            onCheckedChange={() => toggleSelect(r.id)}
+                            aria-label="Select report"
+                          />
+                        )}
                         <button
                           onClick={() => toggle(r.id)}
                           className="flex-1 flex items-center gap-3 text-left"
@@ -544,7 +571,8 @@ function ReportsPage() {
                   ))}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
 
