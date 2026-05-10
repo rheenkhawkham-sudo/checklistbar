@@ -133,6 +133,50 @@ export function ChecklistPage({ mode }: Props) {
       const cur = (map.get(STATE_KEY_CURRENT) as Outlet | undefined) ?? OUTLETS[0];
       const validCur = (OUTLETS as readonly string[]).includes(cur) ? cur : OUTLETS[0];
       setOutlet(validCur);
+
+      // One-time restore: if an outlet's app_state has the bare defaults
+      // (e.g. was wiped by a previous submit), repopulate task headings
+      // from its most recent submitted report so user-added tasks return.
+      const isDefaultTaskSet = (od: Partial<OutletData> | undefined): boolean => {
+        if (!od) return true;
+        const def = DEFAULT_DATA();
+        const same = (a?: Task[], b?: Task[]) =>
+          JSON.stringify((a ?? []).map((x) => x.text)) ===
+          JSON.stringify((b ?? []).map((x) => x.text));
+        return (
+          same(od.open, def.open) &&
+          same(od.close, def.close) &&
+          same(od.monthly, def.monthly)
+        );
+      };
+      const resetDone = (arr: Task[]): Task[] =>
+        (arr ?? []).map((x) => ({ ...x, done: false, remark: "" }));
+
+      await Promise.all(
+        OUTLETS.map(async (o) => {
+          const od = map.get(STATE_KEY_OUTLET(o)) as Partial<OutletData> | undefined;
+          if (!isDefaultTaskSet(od)) return;
+          const { data: report } = await supabase
+            .from("checklist_reports")
+            .select("open_tasks,close_tasks,monthly_tasks")
+            .eq("outlet", o)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!report) return;
+          const restored: OutletData = {
+            ...DEFAULT_DATA(),
+            ...(od ?? {}),
+            open: resetDone((report.open_tasks ?? []) as Task[]),
+            close: resetDone((report.close_tasks ?? []) as Task[]),
+            monthly: resetDone((report.monthly_tasks ?? []) as Task[]),
+          };
+          map.set(STATE_KEY_OUTLET(o), restored);
+          await pushState(STATE_KEY_OUTLET(o), restored);
+        }),
+      );
+      if (!active) return;
+
       const od = map.get(STATE_KEY_OUTLET(validCur)) as Partial<OutletData> | undefined;
       setData({ ...DEFAULT_DATA(), ...(od ?? {}) });
       const recs = map.get(STATE_KEY_RECIPIENTS);
