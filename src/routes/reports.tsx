@@ -54,48 +54,67 @@ function askPassword(label = "กรุณาใส่รหัสผ่าน")
   return v === REPORT_PASSWORD;
 }
 
-function csvEscape(v: unknown) {
-  const s = String(v ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+function downloadPDF(label: string, reports: Report[]) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const title = `Bar Checklist Report — ${label}`;
+  doc.setFontSize(14);
+  doc.text(title, 40, 40);
+  doc.setFontSize(10);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+  doc.text(`Total reports: ${reports.length}`, 40, 72);
 
-function downloadOutletCSV(outlet: Outlet, reports: Report[]) {
-  const rows = [
-    ["Date", "Outlet", "Signed By", "Open Time", "Close Time", "Section", "Task", "Done", "Remark"],
-  ];
+  let y = 90;
   for (const r of reports) {
+    if (y > 500) {
+      doc.addPage();
+      y = 40;
+    }
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      `${r.outlet}  ·  ${r.report_date}  ·  ${r.percent}% (${r.done_tasks}/${r.total_tasks})`,
+      40,
+      y,
+    );
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const meta = `Signed by: ${r.signed_by}${r.open_time ? `  ·  Open: ${r.open_time}` : ""}${
+      r.close_time ? `  ·  Close: ${r.close_time}` : ""
+    }`;
+    doc.text(meta, 40, y);
+    y += 6;
+
+    const body: string[][] = [];
     const sections: [string, Task[]][] = [
-      ["Open", r.open_tasks ?? []],
-      ["Close", r.close_tasks ?? []],
-      ["Monthly", r.monthly_tasks ?? []],
+      ["Open Bar", r.open_tasks ?? []],
+      ["Close Bar", r.close_tasks ?? []],
+      ["Weekly Cleaning", r.monthly_tasks ?? []],
     ];
     for (const [section, tasks] of sections) {
       for (const t of tasks) {
-        rows.push([
-          r.report_date,
-          r.outlet,
-          r.signed_by,
-          r.open_time,
-          r.close_time,
-          section,
-          t.text,
-          t.done ? "Yes" : "No",
-          t.remark ?? "",
-        ]);
+        body.push([section, t.text, t.done ? "Yes" : "No", t.remark ?? ""]);
       }
     }
+    autoTable(doc, {
+      startY: y + 4,
+      head: [["Section", "Task", "Done", "Remark"]],
+      body,
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [30, 30, 30] },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        2: { cellWidth: 40, halign: "center" },
+        3: { cellWidth: 200 },
+      },
+      margin: { left: 40, right: 40 },
+    });
+    // @ts-expect-error lastAutoTable injected by autoTable
+    y = (doc.lastAutoTable?.finalY ?? y) + 24;
   }
-  const csv = "\uFEFF" + rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${outlet.replace(/\s+/g, "_")}_reports_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+
+  const safe = label.replace(/\s+/g, "_");
+  doc.save(`${safe}_reports_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 function ReportsPage() {
