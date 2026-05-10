@@ -10,7 +10,7 @@ export function usePasswords() {
   const { t } = useI18n();
 
   const require = useCallback(
-    (kind: PasswordKind, promptKey: "enterToEditTasks" | "enterToEditEmails" | "enterToEditReport" | "enterToDeleteReport") =>
+    (kind: PasswordKind, promptKey: "enterToEditTasks" | "enterToEditEmails" | "enterToEditReport" | "enterToDeleteReport" | "enterToDeleteReports") =>
       basePrompt(kind, { prompt: t(promptKey), wrong: t("wrongPwAlert") }),
     [t],
   );

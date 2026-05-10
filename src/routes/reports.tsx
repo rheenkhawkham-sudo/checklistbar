@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock, KeyRound } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock, KeyRound, CalendarIcon, CheckSquare, X } from "lucide-react";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { getPassword } from "@/lib/passwords";
 import { useI18n, LangToggle } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
@@ -131,6 +137,10 @@ function ReportsPage() {
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
 
   const loadReports = async () => {
@@ -149,10 +159,15 @@ function ReportsPage() {
     if (unlocked) loadReports();
   }, [unlocked]);
 
-  const filtered = useMemo(
-    () => (outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet)),
-    [reports, outlet],
-  );
+  const filtered = useMemo(() => {
+    let list = outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet);
+    if (dateRange?.from) {
+      const fromKey = format(dateRange.from, "yyyy-MM-dd");
+      const toKey = format(dateRange.to ?? dateRange.from, "yyyy-MM-dd");
+      list = list.filter((r) => r.report_date >= fromKey && r.report_date <= toKey);
+    }
+    return list;
+  }, [reports, outlet, dateRange]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
@@ -167,6 +182,37 @@ function ReportsPage() {
 
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const selectGroup = (items: Report[]) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = items.every((r) => next.has(r.id));
+      if (allSelected) items.forEach((r) => next.delete(r.id));
+      else items.forEach((r) => next.add(r.id));
+      return next;
+    });
+
+  const deleteIds = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!requirePassword("reports", "enterToDeleteReports")) return;
+    if (!window.confirm(t("deleteSelectedConfirm", { n: String(ids.length) }))) return;
+    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
+    if (error) {
+      window.alert(t("deleteFail") + error.message);
+      return;
+    }
+    const set = new Set(ids);
+    setReports((prev) => prev.filter((r) => !set.has(r.id)));
+    setSelectedIds(new Set());
+  };
+
   const handleDelete = async (id: string) => {
     if (!requirePassword("reports", "enterToDeleteReport")) return;
     if (!window.confirm(t("deleteConfirm"))) return;
@@ -176,6 +222,21 @@ function ReportsPage() {
       return;
     }
     setReports((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleDeleteAll = async () => {
+    const ids = filtered.map((r) => r.id);
+    if (ids.length === 0) return;
+    if (!requirePassword("reports", "enterToDeleteReports")) return;
+    if (!window.confirm(t("deleteAllConfirm", { n: String(ids.length) }))) return;
+    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
+    if (error) {
+      window.alert(t("deleteFail") + error.message);
+      return;
+    }
+    const set = new Set(ids);
+    setReports((prev) => prev.filter((r) => !set.has(r.id)));
+    setSelectedIds(new Set());
   };
 
   const handleEdit = async (r: Report) => {
@@ -301,7 +362,7 @@ function ReportsPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
               <TabsTrigger value="daily">{t("daily")}</TabsTrigger>
@@ -320,6 +381,89 @@ function ReportsPage() {
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn(!dateRange?.from && "text-muted-foreground")}>
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "PP")} – {format(dateRange.to, "PP")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "PP")
+                  )
+                ) : (
+                  t("pickDateRange")
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={1}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          {dateRange?.from && (
+            <Button variant="ghost" size="sm" onClick={() => setDateRange(undefined)}>
+              <X className="h-4 w-4 mr-1" /> {t("clearRange")}
+            </Button>
+          )}
+          <div className="flex-1" />
+          {!selectMode ? (
+            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)} disabled={filtered.length === 0}>
+              <CheckSquare className="h-4 w-4 mr-2" />
+              {t("selectMode")}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set(filtered.map((r) => r.id)))}
+              >
+                {t("selectAll")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                {t("clearSelection")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => deleteIds(Array.from(selectedIds))}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {t("deleteSelected", { n: String(selectedIds.size) })}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectMode(false);
+                  setSelectedIds(new Set());
+                }}
+              >
+                {t("cancelSelect")}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteAll}
+            disabled={filtered.length === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {t("deleteAll")}
+          </Button>
+        </div>
+
         {loading ? (
           <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
         ) : filtered.length === 0 ? (
@@ -331,11 +475,31 @@ function ReportsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {groups.map(([groupKey, items]) => (
+            {groups.map(([groupKey, items]) => {
+              const allSelected = selectMode && items.every((r) => selectedIds.has(r.id));
+              return (
               <section key={groupKey}>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
-                  {groupKey} <span className="text-xs">({items.length})</span>
-                </h2>
+                <div className="flex items-center justify-between mb-2 px-1 gap-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    {groupKey} <span className="text-xs">({items.length})</span>
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    {selectMode && (
+                      <Button variant="ghost" size="sm" onClick={() => selectGroup(items)}>
+                        {allSelected ? t("clearSelection") : t("selectAll")}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => deleteIds(items.map((r) => r.id))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      {t("deleteGroup")}
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   {items.map((r) => (
                     <article
@@ -343,6 +507,13 @@ function ReportsPage() {
                       className="rounded-2xl border bg-card shadow-sm overflow-hidden"
                     >
                       <div className="w-full flex items-center gap-2 px-4 py-3">
+                        {selectMode && (
+                          <Checkbox
+                            checked={selectedIds.has(r.id)}
+                            onCheckedChange={() => toggleSelect(r.id)}
+                            aria-label="Select report"
+                          />
+                        )}
                         <button
                           onClick={() => toggle(r.id)}
                           className="flex-1 flex items-center gap-3 text-left"
@@ -400,7 +571,8 @@ function ReportsPage() {
                   ))}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
 
