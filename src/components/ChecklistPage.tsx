@@ -256,7 +256,9 @@ export function ChecklistPage({ mode }: Props) {
         .select("value")
         .eq("key", STATE_KEY_OUTLET(outlet))
         .maybeSingle();
-      setData({ ...DEFAULT_DATA(), ...((row?.value ?? {}) as Partial<OutletData>) });
+      const next = { ...DEFAULT_DATA(), ...((row?.value ?? {}) as Partial<OutletData>) };
+      setData(next);
+      lastSyncedDataCanonRef.current = canon(next);
     })();
   }, [outlet]);
 
@@ -268,14 +270,17 @@ export function ChecklistPage({ mode }: Props) {
     }
     const key = STATE_KEY_OUTLET(outlet);
     const snapshot = data;
+    const snapshotCanon = canon(snapshot);
+    // Local is ahead until our push lands; this guards realtime echoes.
     pendingDataPushRef.current = true;
     const tm = setTimeout(async () => {
       try {
         await pushState(key, snapshot);
+        lastSyncedDataCanonRef.current = snapshotCanon;
       } finally {
         pendingDataPushRef.current = false;
       }
-    }, 250);
+    }, 350);
     return () => clearTimeout(tm);
   }, [data, outlet]);
 
@@ -285,10 +290,18 @@ export function ChecklistPage({ mode }: Props) {
       recInitRef.current = false;
       return;
     }
+    const snapshot = recipients;
+    const snapshotCanon = canon(snapshot);
     pendingRecPushRef.current = true;
-    pushState(STATE_KEY_RECIPIENTS, recipients).finally(() => {
-      pendingRecPushRef.current = false;
-    });
+    const tm = setTimeout(async () => {
+      try {
+        await pushState(STATE_KEY_RECIPIENTS, snapshot);
+        lastSyncedRecCanonRef.current = snapshotCanon;
+      } finally {
+        pendingRecPushRef.current = false;
+      }
+    }, 350);
+    return () => clearTimeout(tm);
   }, [recipients]);
 
   const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
