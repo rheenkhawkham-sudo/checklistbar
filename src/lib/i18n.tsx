@@ -107,6 +107,8 @@ const dict = {
     completedSummary: "{outlet} — เสร็จ {done} จาก {total} งาน",
     dailyShort: "รายวัน",
     weeklyShort: "สัปดาห์",
+    openShort: "เปิด",
+    closeShort: "ปิด",
     outlet: "เอ้าเลท",
     signedBy: "ผู้ทำ",
     fullName: "ชื่อ-นามสกุล",
