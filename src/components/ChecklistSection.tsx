@@ -157,6 +157,26 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
                     size="icon"
                     variant="ghost"
                     className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                    onClick={() => move(t.id, -1)}
+                    aria-label="Move up"
+                    disabled={tasks.indexOf(t) === 0}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                    onClick={() => move(t.id, 1)}
+                    aria-label="Move down"
+                    disabled={tasks.indexOf(t) === tasks.length - 1}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
                     onClick={() => startEdit(t)}
                     aria-label="Edit"
                   >
