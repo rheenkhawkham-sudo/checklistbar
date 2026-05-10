@@ -465,8 +465,6 @@ export function ChecklistPage({ mode }: Props) {
   const updateMeta = (patch: Partial<Pick<LocalWork, "signedBy" | "reportDate" | "openTime" | "closeTime">>) =>
     setWork((w) => ({ ...w, ...patch }));
 
-  const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
-
   const dailyAll = useMemo(() => [...data.open, ...data.close], [data.open, data.close]);
   const openP = useMemo(() => pct(data.open), [data.open]);
   const closeP = useMemo(() => pct(data.close), [data.close]);
@@ -477,6 +475,8 @@ export function ChecklistPage({ mode }: Props) {
     if (!data.signedBy.trim()) return toast.error(t("signBeforeSubmit"));
     setSubmitting(true);
     try {
+      // Send ONLY this device's currently-selected outlet data. Concurrent
+      // submits from other devices/outlets are independent.
       const res = await send({
         data: {
           outlet,
@@ -511,44 +511,12 @@ export function ChecklistPage({ mode }: Props) {
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      // Reset only the "done" checkmarks for EVERY outlet — keep all
-      // user-added/edited task headings intact for the next round.
-      const resetTasks = (arr: Task[]): Task[] =>
-        arr.map((x) => ({ ...x, done: false }));
-      pendingDataPushRef.current = true;
-      try {
-        const { data: rows } = await supabase
-          .from("app_state")
-          .select("key,value")
-          .in(
-            "key",
-            OUTLETS.map((o) => STATE_KEY_OUTLET(o)),
-          );
-        const map = new Map((rows ?? []).map((r) => [r.key, r.value]));
-        await Promise.all(
-          OUTLETS.map((o) => {
-            const cur = {
-              ...DEFAULT_DATA(),
-              ...((map.get(STATE_KEY_OUTLET(o)) ?? {}) as Partial<OutletData>),
-            };
-            const cleared: OutletData = {
-              ...cur,
-              open: resetTasks(cur.open),
-              close: resetTasks(cur.close),
-              monthly: resetTasks(cur.monthly),
-            };
-            if (o === outlet) {
-              setData(cleared);
-              lastSyncedDataCanonRef.current = canon(cleared);
-              // skip the debounced push effect for this synthetic update
-              dataInitRef.current = true;
-            }
-            return pushState(STATE_KEY_OUTLET(o), cleared);
-          }),
-        );
-      } finally {
-        pendingDataPushRef.current = false;
-      }
+      // Clear ONLY this device's local working state for the current outlet.
+      // Task headings (template) are shared and remain intact. Other devices'
+      // checkboxes/signed-by are unaffected.
+      const cleared: LocalWork = { ...DEFAULT_WORK(), reportDate: data.reportDate };
+      setWork(cleared);
+      writeLocalWork(outlet, cleared);
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
