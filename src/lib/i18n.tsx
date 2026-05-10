@@ -176,10 +176,35 @@ const dict = {
 
 export type TKey = keyof (typeof dict)["en"];
 
+// Bidirectional translation for known/default task texts.
+// Add entries here whenever defaults change so display follows the language.
+const TASK_PAIRS: Array<[string, string]> = [
+  ["Stock and restock liquor bottles", "เติมและจัดเรียงขวดสุรา"],
+  ["Check ice machine and refill", "ตรวจสอบเครื่องน้ำแข็งและเติม"],
+  ["Wipe down glassware", "เช็ดทำความสะอาดเครื่องแก้ว"],
+  ["Clean bar counter and tools", "ทำความสะอาดเคาน์เตอร์และอุปกรณ์บาร์"],
+  ["Empty trash and recycling", "ทิ้งขยะและรีไซเคิล"],
+  ["Cash drawer reconciliation", "ตรวจนับเงินในลิ้นชัก"],
+  ["Deep clean draft beer lines", "ล้างท่อเบียร์สดอย่างละเอียด"],
+  ["Inventory full audit", "ตรวจนับสต็อกทั้งหมด"],
+  ["Inspect and clean refrigeration units", "ตรวจและทำความสะอาดตู้เย็น"],
+  ["Review supplier orders & invoices", "ตรวจสอบใบสั่งซื้อและใบแจ้งหนี้ซัพพลายเออร์"],
+  ["Restock garnish and condiments", "เติมเครื่องตกแต่งและเครื่องปรุง"],
+];
+const TASK_EN_TO_TH = new Map(TASK_PAIRS);
+const TASK_TH_TO_EN = new Map(TASK_PAIRS.map(([e, th]) => [th, e]));
+
+export function translateTaskText(text: string, lang: Lang): string {
+  if (!text) return text;
+  if (lang === "th") return TASK_EN_TO_TH.get(text) ?? text;
+  return TASK_TH_TO_EN.get(text) ?? text;
+}
+
 interface I18nCtx {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: TKey, vars?: Record<string, string | number>) => string;
+  tTask: (text: string) => string;
 }
 
 const Ctx = createContext<I18nCtx | null>(null);
