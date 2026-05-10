@@ -266,7 +266,7 @@ function ReportsPage() {
             to="/monthly"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full text-muted-foreground hover:text-foreground"
           >
-            Monthly
+            Weekly Cleaning
           </Link>
           <Link
             to="/reports"
