@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +15,8 @@ export const Route = createFileRoute("/reports")({
 const REPORT_PASSWORD = "00000";
 const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
 type Outlet = (typeof OUTLETS)[number];
+type OutletSelection = Outlet | "All Outlets";
+const OUTLET_OPTIONS: OutletSelection[] = ["All Outlets", ...OUTLETS];
 
 type Task = { id: string; text: string; done: boolean; remark?: string };
 
@@ -52,48 +56,67 @@ function askPassword(label = "กรุณาใส่รหัสผ่าน")
   return v === REPORT_PASSWORD;
 }
 
-function csvEscape(v: unknown) {
-  const s = String(v ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+function downloadPDF(label: string, reports: Report[]) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const title = `Bar Checklist Report — ${label}`;
+  doc.setFontSize(14);
+  doc.text(title, 40, 40);
+  doc.setFontSize(10);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+  doc.text(`Total reports: ${reports.length}`, 40, 72);
 
-function downloadOutletCSV(outlet: Outlet, reports: Report[]) {
-  const rows = [
-    ["Date", "Outlet", "Signed By", "Open Time", "Close Time", "Section", "Task", "Done", "Remark"],
-  ];
+  let y = 90;
   for (const r of reports) {
+    if (y > 500) {
+      doc.addPage();
+      y = 40;
+    }
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      `${r.outlet}  ·  ${r.report_date}  ·  ${r.percent}% (${r.done_tasks}/${r.total_tasks})`,
+      40,
+      y,
+    );
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const meta = `Signed by: ${r.signed_by}${r.open_time ? `  ·  Open: ${r.open_time}` : ""}${
+      r.close_time ? `  ·  Close: ${r.close_time}` : ""
+    }`;
+    doc.text(meta, 40, y);
+    y += 6;
+
+    const body: string[][] = [];
     const sections: [string, Task[]][] = [
-      ["Open", r.open_tasks ?? []],
-      ["Close", r.close_tasks ?? []],
-      ["Monthly", r.monthly_tasks ?? []],
+      ["Open Bar", r.open_tasks ?? []],
+      ["Close Bar", r.close_tasks ?? []],
+      ["Weekly Cleaning", r.monthly_tasks ?? []],
     ];
     for (const [section, tasks] of sections) {
       for (const t of tasks) {
-        rows.push([
-          r.report_date,
-          r.outlet,
-          r.signed_by,
-          r.open_time,
-          r.close_time,
-          section,
-          t.text,
-          t.done ? "Yes" : "No",
-          t.remark ?? "",
-        ]);
+        body.push([section, t.text, t.done ? "Yes" : "No", t.remark ?? ""]);
       }
     }
+    autoTable(doc, {
+      startY: y + 4,
+      head: [["Section", "Task", "Done", "Remark"]],
+      body,
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [30, 30, 30] },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        2: { cellWidth: 40, halign: "center" },
+        3: { cellWidth: 200 },
+      },
+      margin: { left: 40, right: 40 },
+    });
+    // @ts-expect-error lastAutoTable injected by autoTable
+    y = (doc.lastAutoTable?.finalY ?? y) + 24;
   }
-  const csv = "\uFEFF" + rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${outlet.replace(/\s+/g, "_")}_reports_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+
+  const safe = label.replace(/\s+/g, "_");
+  doc.save(`${safe}_reports_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 function ReportsPage() {
@@ -104,7 +127,7 @@ function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
-  const [outlet, setOutlet] = useState<Outlet>(OUTLETS[0]);
+  const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const loadReports = async () => {
@@ -124,7 +147,7 @@ function ReportsPage() {
   }, [unlocked]);
 
   const filtered = useMemo(
-    () => reports.filter((r) => r.outlet === outlet),
+    () => (outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet)),
     [reports, outlet],
   );
 
@@ -243,7 +266,7 @@ function ReportsPage() {
             to="/monthly"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full text-muted-foreground hover:text-foreground"
           >
-            Monthly
+            Weekly Cleaning
           </Link>
           <Link
             to="/reports"
@@ -257,9 +280,9 @@ function ReportsPage() {
           </Link>
         </nav>
 
-        {/* Outlet selector — one file per outlet */}
-        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {OUTLETS.map((o) => (
+        {/* Outlet selector — choose one outlet or all */}
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {OUTLET_OPTIONS.map((o) => (
             <button
               key={o}
               onClick={() => setOutlet(o)}
@@ -285,11 +308,11 @@ function ReportsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => downloadOutletCSV(outlet, filtered)}
+            onClick={() => downloadPDF(outlet, filtered)}
             disabled={filtered.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Download {outlet}
+            Download PDF — {outlet}
           </Button>
         </div>
 
@@ -364,7 +387,7 @@ function ReportsPage() {
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
                           <TaskList title="Open Bar" tasks={r.open_tasks} />
                           <TaskList title="Close Bar" tasks={r.close_tasks} />
-                          <TaskList title="Monthly" tasks={r.monthly_tasks} />
+                          <TaskList title="Weekly Cleaning" tasks={r.monthly_tasks} />
                         </div>
                       )}
                     </article>
