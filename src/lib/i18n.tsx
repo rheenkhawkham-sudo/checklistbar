@@ -25,6 +25,8 @@ const dict = {
     completedSummary: "{outlet} — {done} of {total} tasks completed",
     dailyShort: "Daily",
     weeklyShort: "Weekly",
+    openShort: "Open",
+    closeShort: "Close",
     outlet: "Outlet",
     signedBy: "Signed by",
     fullName: "Your full name",
