@@ -66,6 +66,16 @@ export function ChecklistSection({ title, tasks, onChange, variant = "default", 
     remove(id);
   };
 
+  const move = (id: string, dir: -1 | 1) => {
+    if (!requirePassword()) return;
+    const idx = tasks.findIndex((t) => t.id === id);
+    const next = idx + dir;
+    if (idx < 0 || next < 0 || next >= tasks.length) return;
+    const copy = tasks.slice();
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    onChange(copy);
+  };
+
   const saveEdit = () => {
     if (!editingId) return;
     const t = editText.trim();
