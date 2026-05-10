@@ -71,16 +71,6 @@ function pct(tasks: Task[]) {
   return { percent: t === 0 ? 0 : Math.round((d / t) * 100), done: d, total: t };
 }
 
-function requirePassword() {
-  const pw = window.prompt("กรุณาใส่รหัสผ่าน");
-  if (pw === null) return false;
-  if (pw !== "0000") {
-    window.alert("รหัสผ่านไม่ถูกต้อง");
-    return false;
-  }
-  return true;
-}
-
 async function pushState(key: string, value: unknown) {
   await supabase
     .from("app_state")
