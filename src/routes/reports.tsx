@@ -137,6 +137,10 @@ function ReportsPage() {
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
 
   const loadReports = async () => {
@@ -155,10 +159,15 @@ function ReportsPage() {
     if (unlocked) loadReports();
   }, [unlocked]);
 
-  const filtered = useMemo(
-    () => (outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet)),
-    [reports, outlet],
-  );
+  const filtered = useMemo(() => {
+    let list = outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet);
+    if (dateRange?.from) {
+      const fromKey = format(dateRange.from, "yyyy-MM-dd");
+      const toKey = format(dateRange.to ?? dateRange.from, "yyyy-MM-dd");
+      list = list.filter((r) => r.report_date >= fromKey && r.report_date <= toKey);
+    }
+    return list;
+  }, [reports, outlet, dateRange]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
@@ -173,6 +182,37 @@ function ReportsPage() {
 
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const selectGroup = (items: Report[]) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = items.every((r) => next.has(r.id));
+      if (allSelected) items.forEach((r) => next.delete(r.id));
+      else items.forEach((r) => next.add(r.id));
+      return next;
+    });
+
+  const deleteIds = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!requirePassword("reports", "enterToDeleteReports")) return;
+    if (!window.confirm(t("deleteSelectedConfirm", { n: String(ids.length) }))) return;
+    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
+    if (error) {
+      window.alert(t("deleteFail") + error.message);
+      return;
+    }
+    const set = new Set(ids);
+    setReports((prev) => prev.filter((r) => !set.has(r.id)));
+    setSelectedIds(new Set());
+  };
+
   const handleDelete = async (id: string) => {
     if (!requirePassword("reports", "enterToDeleteReport")) return;
     if (!window.confirm(t("deleteConfirm"))) return;
@@ -182,6 +222,21 @@ function ReportsPage() {
       return;
     }
     setReports((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleDeleteAll = async () => {
+    const ids = filtered.map((r) => r.id);
+    if (ids.length === 0) return;
+    if (!requirePassword("reports", "enterToDeleteReports")) return;
+    if (!window.confirm(t("deleteAllConfirm", { n: String(ids.length) }))) return;
+    const { error } = await supabase.from("checklist_reports").delete().in("id", ids);
+    if (error) {
+      window.alert(t("deleteFail") + error.message);
+      return;
+    }
+    const set = new Set(ids);
+    setReports((prev) => prev.filter((r) => !set.has(r.id)));
+    setSelectedIds(new Set());
   };
 
   const handleEdit = async (r: Report) => {
