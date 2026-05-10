@@ -235,8 +235,8 @@ async function flushPending() {
   for (const t of batch) pending.delete(t);
   try {
     const mod = await import("@/lib/translate.functions");
-    const { data } = await mod.translateTexts({ data: { texts: batch, target: "th" } });
-    const translations = (data as { translations: string[] }).translations;
+    const result = await mod.translateTexts({ data: { texts: batch, target: "th" } });
+    const translations = result.translations;
     batch.forEach((src, i) => {
       const out = translations[i];
       if (out && out.trim()) cache.th[src] = out.trim();
