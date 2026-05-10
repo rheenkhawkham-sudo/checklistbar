@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock, KeyRound } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getPassword, changePassword, requirePassword } from "@/lib/passwords";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
 });
 
-const REPORT_PASSWORD = "00000";
+
 const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
 type Outlet = (typeof OUTLETS)[number];
 type OutletSelection = Outlet | "All Outlets";
@@ -52,8 +53,7 @@ function fmtKey(dateStr: string, period: Period) {
 }
 
 function askPassword(label = "กรุณาใส่รหัสผ่าน") {
-  const v = window.prompt(label);
-  return v === REPORT_PASSWORD;
+  return requirePassword("reports", label);
 }
 
 function downloadPDF(label: string, reports: Report[]) {
@@ -211,7 +211,7 @@ function ReportsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (pwInput === REPORT_PASSWORD) {
+              if (pwInput === getPassword("reports")) {
                 setUnlocked(true);
                 setPwError("");
               } else {
@@ -398,9 +398,13 @@ function ReportsPage() {
           </div>
         )}
 
-        <div className="mt-8 flex justify-center gap-2">
+        <div className="mt-8 flex flex-wrap justify-center gap-2">
           <Button asChild variant="outline">
             <Link to="/daily">Back to checklist</Link>
+          </Button>
+          <Button variant="outline" onClick={() => changePassword("reports")}>
+            <KeyRound className="h-4 w-4 mr-2" />
+            Change password
           </Button>
           <Button variant="ghost" onClick={() => setUnlocked(false)}>
             Lock
