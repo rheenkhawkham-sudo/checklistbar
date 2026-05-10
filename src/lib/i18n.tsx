@@ -46,6 +46,7 @@ const dict = {
     done: "Done",
     password: "Password",
     addTask: "Add a new task...",
+    maxTasks: "Maximum 50 tasks per section",
     noTasks: "No tasks yet.",
     addOneAbove: " Add one above.",
     remark: "Remark...",
