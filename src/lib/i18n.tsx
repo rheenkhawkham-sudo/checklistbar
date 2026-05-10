@@ -285,6 +285,7 @@ const Ctx = createContext<I18nCtx | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     try {
@@ -293,6 +294,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  useEffect(() => {
+    const fn = () => setTick((n) => n + 1);
+    subscribers.add(fn);
+    return () => {
+      subscribers.delete(fn);
+    };
   }, []);
 
   const setLang = useCallback((l: Lang) => {
