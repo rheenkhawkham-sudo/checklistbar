@@ -60,19 +60,9 @@ const DEFAULT_DATA = (): OutletData => ({
   closeTime: "",
 });
 
-const KEY_OUTLET = "bar.currentOutlet";
-const KEY_RECIPIENTS = "bar.recipients";
-const dataKey = (o: Outlet) => `bar.outletData.${o}`;
-
-function load<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+const STATE_KEY_OUTLET = (o: Outlet) => `outlet:${o}`;
+const STATE_KEY_RECIPIENTS = "recipients";
+const STATE_KEY_CURRENT = "currentOutlet";
 
 function pct(tasks: Task[]) {
   const t = tasks.length;
@@ -90,6 +80,12 @@ function requirePassword() {
   return true;
 }
 
+async function pushState(key: string, value: unknown) {
+  await supabase
+    .from("app_state")
+    .upsert({ key, value: value as never, updated_at: new Date().toISOString() }, { onConflict: "key" });
+}
+
 interface Props {
   mode: "daily" | "monthly";
 }
@@ -103,50 +99,105 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  // Initial load
+  // Suppress echo: when we receive realtime for a write we just made
+  const localWriteRef = useRef<{ [k: string]: string }>({});
+
+  // Initial load + realtime subscription
   useEffect(() => {
-    const o = load<Outlet>(KEY_OUTLET, OUTLETS[0]);
-    const valid = (OUTLETS as readonly string[]).includes(o) ? o : OUTLETS[0];
-    setOutlet(valid);
-    setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(valid), DEFAULT_DATA()) });
-    setRecipients(load<string[]>(KEY_RECIPIENTS, []));
+    let active = true;
+    (async () => {
+      const { data: rows } = await supabase.from("app_state").select("key,value");
+      if (!active || !rows) return;
+      const map = new Map(rows.map((r) => [r.key, r.value]));
+      const cur = (map.get(STATE_KEY_CURRENT) as Outlet | undefined) ?? OUTLETS[0];
+      const validCur = (OUTLETS as readonly string[]).includes(cur) ? cur : OUTLETS[0];
+      setOutlet(validCur);
+      const od = map.get(STATE_KEY_OUTLET(validCur)) as Partial<OutletData> | undefined;
+      setData({ ...DEFAULT_DATA(), ...(od ?? {}) });
+      const recs = map.get(STATE_KEY_RECIPIENTS);
+      setRecipients(Array.isArray(recs) ? (recs as string[]) : []);
+    })();
+
+    const channel = supabase
+      .channel("app_state_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_state" },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
+          if (!row) return;
+          const stamp = JSON.stringify(row.value);
+          if (localWriteRef.current[row.key] === stamp) {
+            delete localWriteRef.current[row.key];
+            return;
+          }
+          if (row.key === STATE_KEY_CURRENT) {
+            const v = row.value as Outlet;
+            if ((OUTLETS as readonly string[]).includes(v)) setOutlet(v);
+          } else if (row.key === STATE_KEY_RECIPIENTS) {
+            setRecipients(Array.isArray(row.value) ? (row.value as string[]) : []);
+          } else if (row.key.startsWith("outlet:")) {
+            const o = row.key.slice("outlet:".length) as Outlet;
+            setOutlet((cur) => {
+              if (o === cur) {
+                setData({ ...DEFAULT_DATA(), ...((row.value ?? {}) as Partial<OutletData>) });
+              }
+              return cur;
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Sync outlet -> load that outlet's data
+  // When outlet changes locally, broadcast and load that outlet's data
+  const outletInitRef = useRef(true);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(KEY_OUTLET, JSON.stringify(outlet));
-    setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(outlet), DEFAULT_DATA()) });
+    if (outletInitRef.current) {
+      outletInitRef.current = false;
+      return;
+    }
+    localWriteRef.current[STATE_KEY_CURRENT] = JSON.stringify(outlet);
+    pushState(STATE_KEY_CURRENT, outlet);
+    (async () => {
+      const { data: row } = await supabase
+        .from("app_state")
+        .select("value")
+        .eq("key", STATE_KEY_OUTLET(outlet))
+        .maybeSingle();
+      setData({ ...DEFAULT_DATA(), ...((row?.value ?? {}) as Partial<OutletData>) });
+    })();
   }, [outlet]);
 
-  // Persist data per outlet
+  // Debounced push of data changes for current outlet
+  const dataInitRef = useRef(true);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(dataKey(outlet), JSON.stringify(data));
+    if (dataInitRef.current) {
+      dataInitRef.current = false;
+      return;
+    }
+    const key = STATE_KEY_OUTLET(outlet);
+    const stamp = JSON.stringify(data);
+    localWriteRef.current[key] = stamp;
+    const t = setTimeout(() => pushState(key, data), 250);
+    return () => clearTimeout(t);
   }, [data, outlet]);
 
-  // Persist recipients
+  // Push recipient changes
+  const recInitRef = useRef(true);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(KEY_RECIPIENTS, JSON.stringify(recipients));
+    if (recInitRef.current) {
+      recInitRef.current = false;
+      return;
+    }
+    localWriteRef.current[STATE_KEY_RECIPIENTS] = JSON.stringify(recipients);
+    pushState(STATE_KEY_RECIPIENTS, recipients);
   }, [recipients]);
-
-  // Cross-tab sync
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (!e.key) return;
-      if (e.key === KEY_OUTLET) {
-        const o = load<Outlet>(KEY_OUTLET, OUTLETS[0]);
-        if ((OUTLETS as readonly string[]).includes(o)) setOutlet(o);
-      }
-      if (e.key === dataKey(outlet)) {
-        setData({ ...DEFAULT_DATA(), ...load<OutletData>(dataKey(outlet), DEFAULT_DATA()) });
-      }
-      if (e.key === KEY_RECIPIENTS) setRecipients(load<string[]>(KEY_RECIPIENTS, []));
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [outlet]);
 
   const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
 
