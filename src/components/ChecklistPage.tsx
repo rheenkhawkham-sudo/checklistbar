@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Send, Wine, Mail, Plus, Trash2, Pencil, Check, X, Settings2, KeyRound } from "lucide-react";
-import { requirePassword, changePassword } from "@/lib/passwords";
+import { useI18n, LangToggle } from "@/lib/i18n";
+import { usePasswords } from "@/lib/usePasswords";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,9 +67,9 @@ const STATE_KEY_RECIPIENTS = "recipients";
 const STATE_KEY_CURRENT = "currentOutlet";
 
 function pct(tasks: Task[]) {
-  const t = tasks.length;
+  const total = tasks.length;
   const d = tasks.filter((x) => x.done).length;
-  return { percent: t === 0 ? 0 : Math.round((d / t) * 100), done: d, total: t };
+  return { percent: total === 0 ? 0 : Math.round((d / total) * 100), done: d, total };
 }
 
 async function pushState(key: string, value: unknown) {
@@ -83,6 +84,7 @@ interface Props {
 
 export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
+  const { t } = useI18n();
 
   const [outlet, setOutlet] = useState<Outlet>(OUTLETS[0]);
   const [data, setData] = useState<OutletData>(DEFAULT_DATA);
@@ -90,10 +92,8 @@ export function ChecklistPage({ mode }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
-  // Suppress echo: when we receive realtime for a write we just made
   const localWriteRef = useRef<{ [k: string]: string }>({});
 
-  // Initial load + realtime subscription
   useEffect(() => {
     let active = true;
     (async () => {
@@ -146,7 +146,6 @@ export function ChecklistPage({ mode }: Props) {
     };
   }, []);
 
-  // When outlet changes locally, broadcast and load that outlet's data
   const outletInitRef = useRef(true);
   useEffect(() => {
     if (outletInitRef.current) {
@@ -165,7 +164,6 @@ export function ChecklistPage({ mode }: Props) {
     })();
   }, [outlet]);
 
-  // Debounced push of data changes for current outlet
   const dataInitRef = useRef(true);
   useEffect(() => {
     if (dataInitRef.current) {
@@ -175,11 +173,10 @@ export function ChecklistPage({ mode }: Props) {
     const key = STATE_KEY_OUTLET(outlet);
     const stamp = JSON.stringify(data);
     localWriteRef.current[key] = stamp;
-    const t = setTimeout(() => pushState(key, data), 250);
-    return () => clearTimeout(t);
+    const tm = setTimeout(() => pushState(key, data), 250);
+    return () => clearTimeout(tm);
   }, [data, outlet]);
 
-  // Push recipient changes
   const recInitRef = useRef(true);
   useEffect(() => {
     if (recInitRef.current) {
@@ -198,7 +195,7 @@ export function ChecklistPage({ mode }: Props) {
   const combinedP = useMemo(() => pct([...dailyAll, ...data.monthly]), [dailyAll, data.monthly]);
 
   const onSubmit = async () => {
-    if (!data.signedBy.trim()) return toast.error("Please sign with your name before submitting");
+    if (!data.signedBy.trim()) return toast.error(t("signBeforeSubmit"));
     setSubmitting(true);
     try {
       const res = await send({
@@ -218,7 +215,7 @@ export function ChecklistPage({ mode }: Props) {
       });
       const all = [...data.open, ...data.close, ...data.monthly];
       const totalTasks = all.length;
-      const doneTasks = all.filter((t) => t.done).length;
+      const doneTasks = all.filter((x) => x.done).length;
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
       const { error: dbErr } = await supabase.from("checklist_reports").insert({
         report_date: data.reportDate,
@@ -234,8 +231,8 @@ export function ChecklistPage({ mode }: Props) {
         percent,
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
-      toast.success(`Submitted! Report sent to ${res.recipient}`);
-      const clear = (arr: Task[]) => arr.map((t) => ({ ...t, done: false, remark: "" }));
+      toast.success(t("submitted", { to: res.recipient }));
+      const clear = (arr: Task[]) => arr.map((x) => ({ ...x, done: false, remark: "" }));
       setData((d) => ({
         open: clear(d.open),
         close: clear(d.close),
@@ -247,7 +244,7 @@ export function ChecklistPage({ mode }: Props) {
       }));
     } catch (e) {
       console.error(e);
-      toast.error("Failed to send email. Please try again.");
+      toast.error(t("sendFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -257,17 +254,19 @@ export function ChecklistPage({ mode }: Props) {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
       <Toaster richColors position="top-center" />
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+        <div className="flex justify-end mb-2">
+          <LangToggle />
+        </div>
         <header className="text-center mb-6">
           <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
             <Wine className="h-3.5 w-3.5" />
-            Bar Operations
+            {t("barOperations")}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Bar Checklist</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{t("barChecklist")}</h1>
         </header>
 
-        {/* Outlet selector */}
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
-          <Label className="text-xs text-muted-foreground">Select Outlet</Label>
+          <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
           <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
               <SelectValue />
@@ -280,9 +279,7 @@ export function ChecklistPage({ mode }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-2 text-xs text-muted-foreground">
-            All data, tasks, and reports are kept separate per outlet.
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{t("separateData")}</p>
         </section>
 
         <nav className="flex justify-center gap-2 mb-8 p-1 rounded-full border bg-card max-w-md mx-auto">
@@ -294,7 +291,7 @@ export function ChecklistPage({ mode }: Props) {
                 "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
             }}
           >
-            Daily
+            {t("daily")}
           </Link>
           <Link
             to="/monthly"
@@ -304,7 +301,7 @@ export function ChecklistPage({ mode }: Props) {
                 "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
             }}
           >
-            Weekly Cleaning
+            {t("weeklyCleaning")}
           </Link>
           <Link
             to="/reports"
@@ -314,27 +311,27 @@ export function ChecklistPage({ mode }: Props) {
                 "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
             }}
           >
-            Reports
+            {t("reports")}
           </Link>
         </nav>
 
         <section className="flex flex-col items-center justify-center mb-8 rounded-3xl border bg-card p-8 shadow-sm">
           <CircularProgress percent={combinedP.percent} />
           <p className="mt-4 text-sm text-muted-foreground tabular-nums">
-            {outlet} — {combinedP.done} of {combinedP.total} tasks completed
+            {t("completedSummary", { outlet, done: combinedP.done, total: combinedP.total })}
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-6 w-full max-w-sm">
             <div className="flex flex-col items-center">
               <CircularProgress percent={dailyP.percent} size={100} />
               <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                Daily {dailyP.done}/{dailyP.total}
+                {t("dailyShort")} {dailyP.done}/{dailyP.total}
               </p>
             </div>
             <div className="flex flex-col items-center">
               <CircularProgress percent={monthlyP.percent} size={100} />
               <p className="mt-2 text-xs text-muted-foreground tabular-nums">
-                Weekly {monthlyP.done}/{monthlyP.total}
+                {t("weeklyShort")} {monthlyP.done}/{monthlyP.total}
               </p>
             </div>
           </div>
@@ -350,21 +347,21 @@ export function ChecklistPage({ mode }: Props) {
             ) => (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Outlet</Label>
+                  <Label>{t("outlet")}</Label>
                   <Input value={outlet} disabled />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`signedBy-${timeId}`}>Signed by</Label>
+                  <Label htmlFor={`signedBy-${timeId}`}>{t("signedBy")}</Label>
                   <Input
                     id={`signedBy-${timeId}`}
-                    placeholder="Your full name"
+                    placeholder={t("fullName")}
                     value={data.signedBy}
                     onChange={(e) => update({ signedBy: e.target.value })}
                     maxLength={100}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`reportDate-${timeId}`}>Date</Label>
+                  <Label htmlFor={`reportDate-${timeId}`}>{t("date")}</Label>
                   <Input
                     id={`reportDate-${timeId}`}
                     type="date"
@@ -388,20 +385,20 @@ export function ChecklistPage({ mode }: Props) {
               return (
                 <>
                   <ChecklistSection
-                    title="Open Bar"
+                    title={t("openBar")}
                     tasks={data.open}
                     onChange={(open) => update({ open })}
                     variant="open"
-                    headerExtra={buildMeta("Open time", "openTime", data.openTime, (v) =>
+                    headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
                       update({ openTime: v }),
                     )}
                   />
                   <ChecklistSection
-                    title="Close Bar"
+                    title={t("closeBar")}
                     tasks={data.close}
                     onChange={(close) => update({ close })}
                     variant="close"
-                    headerExtra={buildMeta("Close time", "closeTime", data.closeTime, (v) =>
+                    headerExtra={buildMeta(t("closeTime"), "closeTime", data.closeTime, (v) =>
                       update({ closeTime: v }),
                     )}
                   />
@@ -411,23 +408,23 @@ export function ChecklistPage({ mode }: Props) {
             return (
               <>
                 <div className="rounded-2xl border bg-card p-5 shadow-sm">
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Outlet</Label>
+                      <Label>{t("outlet")}</Label>
                       <Input value={outlet} disabled />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="signedBy-m">Signed by</Label>
+                      <Label htmlFor="signedBy-m">{t("signedBy")}</Label>
                       <Input
                         id="signedBy-m"
-                        placeholder="Your full name"
+                        placeholder={t("fullName")}
                         value={data.signedBy}
                         onChange={(e) => update({ signedBy: e.target.value })}
                         maxLength={100}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reportDate-m">Date</Label>
+                      <Label htmlFor="reportDate-m">{t("date")}</Label>
                       <Input
                         id="reportDate-m"
                         type="date"
@@ -435,10 +432,19 @@ export function ChecklistPage({ mode }: Props) {
                         onChange={(e) => update({ reportDate: e.target.value })}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cleanTime-m">{t("time")}</Label>
+                      <Input
+                        id="cleanTime-m"
+                        type="time"
+                        value={data.openTime}
+                        onChange={(e) => update({ openTime: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
                 <ChecklistSection
-                  title="Weekly Cleaning"
+                  title={t("weeklyCleaning")}
                   tasks={data.monthly}
                   onChange={(monthly) => update({ monthly })}
                 />
@@ -457,12 +463,12 @@ export function ChecklistPage({ mode }: Props) {
             disabled={submitting}
           >
             <Send className="mr-2 h-5 w-5" />
-            {submitting ? "Sending..." : "Submit & Email Report"}
+            {submitting ? t("sending") : t("submit")}
           </Button>
           <p className="text-center text-xs text-muted-foreground mt-2">
             {recipients.length > 0
-              ? `Report will be emailed to ${recipients.length} recipient${recipients.length > 1 ? "s" : ""}`
-              : "Report will be emailed to rheen.khawkham@gmail.com (default)"}
+              ? t(recipients.length > 1 ? "emailedToPlural" : "emailedTo", { n: recipients.length })
+              : t("emailedToDefault")}
           </p>
         </div>
       </div>
@@ -477,6 +483,8 @@ function RecipientsSection({
   recipients: string[];
   setRecipients: (r: string[]) => void;
 }) {
+  const { t } = useI18n();
+  const { requirePassword, changePassword } = usePasswords();
   const [editMode, setEditMode] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -485,7 +493,7 @@ function RecipientsSection({
   const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 
   const enableEdit = () => {
-    if (!requirePassword("edit", "ใส่รหัสผ่านเพื่อแก้ไขรายชื่ออีเมล")) return;
+    if (!requirePassword("edit", "enterToEditEmails")) return;
     setEditMode(true);
   };
 
@@ -496,9 +504,9 @@ function RecipientsSection({
 
   const add = () => {
     const e = newEmail.trim();
-    if (!isEmail(e)) return toast.error("Invalid email");
-    if (recipients.length >= 5) return toast.error("Maximum 5 emails allowed");
-    if (recipients.includes(e)) return toast.error("Email already added");
+    if (!isEmail(e)) return toast.error(t("invalidEmail"));
+    if (recipients.length >= 5) return toast.error(t("max5"));
+    if (recipients.includes(e)) return toast.error(t("alreadyAdded"));
     setRecipients([...recipients, e]);
     setNewEmail("");
   };
@@ -515,7 +523,7 @@ function RecipientsSection({
   const saveEdit = () => {
     if (editingIdx === null) return;
     const e = editValue.trim();
-    if (!isEmail(e)) return toast.error("Invalid email");
+    if (!isEmail(e)) return toast.error(t("invalidEmail"));
     setRecipients(recipients.map((r, idx) => (idx === editingIdx ? e : r)));
     setEditingIdx(null);
   };
@@ -524,7 +532,7 @@ function RecipientsSection({
     <section className="rounded-2xl border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Mail className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Recipient Emails</h2>
+        <h2 className="text-base font-semibold">{t("recipientEmails")}</h2>
         <span className="text-xs text-muted-foreground tabular-nums">
           {recipients.length}/5
         </span>
@@ -537,27 +545,27 @@ function RecipientsSection({
                 onClick={() => changePassword("edit")}
               >
                 <KeyRound className="h-4 w-4 mr-1" />
-                Password
+                {t("password")}
               </Button>
               <Button size="sm" variant="secondary" onClick={exitEdit}>
                 <Check className="h-4 w-4 mr-1" />
-                Done
+                {t("done")}
               </Button>
             </>
           ) : (
             <Button size="sm" variant="outline" onClick={enableEdit}>
               <Settings2 className="h-4 w-4 mr-1" />
-              Edit
+              {t("edit")}
             </Button>
           )}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground mb-3">Up to 5 recipients.</p>
+      <p className="text-xs text-muted-foreground mb-3">{t("upTo5")}</p>
 
       <ul className="space-y-2 mb-3">
         {recipients.length === 0 && (
           <li className="text-sm text-muted-foreground text-center py-3">
-            No recipients yet. Default: rheen.khawkham@gmail.com
+            {t("noRecipients")}
           </li>
         )}
         {recipients.map((r, i) => (
@@ -593,7 +601,7 @@ function RecipientsSection({
                       size="icon"
                       variant="ghost"
                       onClick={() => startEdit(i)}
-                      aria-label="Edit"
+                      aria-label={t("editAria")}
                       className="shrink-0"
                     >
                       <Pencil className="h-4 w-4" />
@@ -602,7 +610,7 @@ function RecipientsSection({
                       size="icon"
                       variant="ghost"
                       onClick={() => remove(i)}
-                      aria-label="Remove"
+                      aria-label={t("removeAria")}
                       className="shrink-0 text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -625,7 +633,7 @@ function RecipientsSection({
             onKeyDown={(e) => e.key === "Enter" && add()}
             maxLength={255}
           />
-          <Button size="icon" onClick={add} aria-label="Add email">
+          <Button size="icon" onClick={add} aria-label={t("addEmail")}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -633,4 +641,3 @@ function RecipientsSection({
     </section>
   );
 }
-
