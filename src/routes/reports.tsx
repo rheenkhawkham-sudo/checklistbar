@@ -13,7 +13,7 @@ export const Route = createFileRoute("/reports")({
   component: ReportsPage,
 });
 
-const REPORT_PASSWORD = "00000";
+
 const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
 type Outlet = (typeof OUTLETS)[number];
 type OutletSelection = Outlet | "All Outlets";
