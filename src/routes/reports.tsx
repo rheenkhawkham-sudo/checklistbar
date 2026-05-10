@@ -127,7 +127,7 @@ function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
-  const [outlet, setOutlet] = useState<Outlet>(OUTLETS[0]);
+  const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const loadReports = async () => {
@@ -147,7 +147,7 @@ function ReportsPage() {
   }, [unlocked]);
 
   const filtered = useMemo(
-    () => reports.filter((r) => r.outlet === outlet),
+    () => (outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet)),
     [reports, outlet],
   );
 
