@@ -53,8 +53,7 @@ function fmtKey(dateStr: string, period: Period) {
 }
 
 function askPassword(label = "กรุณาใส่รหัสผ่าน") {
-  const v = window.prompt(label);
-  return v === REPORT_PASSWORD;
+  return requirePassword("reports", label);
 }
 
 function downloadPDF(label: string, reports: Report[]) {
