@@ -44,7 +44,7 @@ export function ChecklistSection({
   variant = "default",
   headerExtra,
 }: Props) {
-  const { t } = useI18n();
+  const { t, tTask } = useI18n();
   const { requirePassword, changePassword } = usePasswords();
   const [editMode, setEditMode] = useState(false);
   const [newText, setNewText] = useState("");
@@ -194,7 +194,7 @@ export function ChecklistSection({
                       task.done ? "line-through text-muted-foreground" : ""
                     }`}
                   >
-                    {task.text}
+                    {tTask(task.text)}
                   </span>
                   {editMode && (
                     <>
