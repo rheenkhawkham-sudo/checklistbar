@@ -387,7 +387,7 @@ function ReportsPage() {
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
                           <TaskList title="Open Bar" tasks={r.open_tasks} />
                           <TaskList title="Close Bar" tasks={r.close_tasks} />
-                          <TaskList title="Monthly" tasks={r.monthly_tasks} />
+                          <TaskList title="Weekly Cleaning" tasks={r.monthly_tasks} />
                         </div>
                       )}
                     </article>
