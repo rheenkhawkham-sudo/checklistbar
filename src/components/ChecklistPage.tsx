@@ -268,7 +268,8 @@ export function ChecklistPage({ mode }: Props) {
   const update = (patch: Partial<OutletData>) => setData((d) => ({ ...d, ...patch }));
 
   const dailyAll = useMemo(() => [...data.open, ...data.close], [data.open, data.close]);
-  const dailyP = useMemo(() => pct(dailyAll), [dailyAll]);
+  const openP = useMemo(() => pct(data.open), [data.open]);
+  const closeP = useMemo(() => pct(data.close), [data.close]);
   const monthlyP = useMemo(() => pct(data.monthly), [data.monthly]);
   const combinedP = useMemo(() => pct([...dailyAll, ...data.monthly]), [dailyAll, data.monthly]);
 
