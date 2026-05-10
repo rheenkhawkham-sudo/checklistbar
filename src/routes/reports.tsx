@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getPassword, changePassword, requirePassword } from "@/lib/passwords";
+import { getPassword } from "@/lib/passwords";
+import { useI18n, LangToggle } from "@/lib/i18n";
+import { usePasswords } from "@/lib/usePasswords";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
@@ -52,10 +54,6 @@ function fmtKey(dateStr: string, period: Period) {
   });
 }
 
-function askPassword(label = "กรุณาใส่รหัสผ่าน") {
-  return requirePassword("reports", label);
-}
-
 function downloadPDF(label: string, reports: Report[]) {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const title = `Bar Checklist Report — ${label}`;
@@ -94,8 +92,8 @@ function downloadPDF(label: string, reports: Report[]) {
       ["Weekly Cleaning", r.monthly_tasks ?? []],
     ];
     for (const [section, tasks] of sections) {
-      for (const t of tasks) {
-        body.push([section, t.text, t.done ? "Yes" : "No", t.remark ?? ""]);
+      for (const task of tasks) {
+        body.push([section, task.text, task.done ? "Yes" : "No", task.remark ?? ""]);
       }
     }
     autoTable(doc, {
@@ -120,6 +118,9 @@ function downloadPDF(label: string, reports: Report[]) {
 }
 
 function ReportsPage() {
+  const { t } = useI18n();
+  const { requirePassword, changePassword } = usePasswords();
+
   const [unlocked, setUnlocked] = useState(false);
   const [pwInput, setPwInput] = useState("");
   const [pwError, setPwError] = useState("");
@@ -129,6 +130,8 @@ function ReportsPage() {
   const [period, setPeriod] = useState<Period>("daily");
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
 
   const loadReports = async () => {
     setLoading(true);
@@ -165,27 +168,27 @@ function ReportsPage() {
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
   const handleDelete = async (id: string) => {
-    if (!askPassword("ใส่รหัสผ่านเพื่อลบรีพอร์ท")) return;
-    if (!window.confirm("ยืนยันการลบรีพอร์ทนี้?")) return;
+    if (!requirePassword("reports", "enterToDeleteReport")) return;
+    if (!window.confirm(t("deleteConfirm"))) return;
     const { error } = await supabase.from("checklist_reports").delete().eq("id", id);
     if (error) {
-      window.alert("ลบไม่สำเร็จ: " + error.message);
+      window.alert(t("deleteFail") + error.message);
       return;
     }
     setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleEdit = async (r: Report) => {
-    if (!askPassword("ใส่รหัสผ่านเพื่อแก้ไขรีพอร์ท")) return;
-    const signed = window.prompt("ผู้ทำ (Signed by)", r.signed_by) ?? r.signed_by;
-    const openTime = window.prompt("Open time", r.open_time) ?? r.open_time;
-    const closeTime = window.prompt("Close time", r.close_time) ?? r.close_time;
+    if (!requirePassword("reports", "enterToEditReport")) return;
+    const signed = window.prompt(t("signedBy"), r.signed_by) ?? r.signed_by;
+    const openTime = window.prompt(t("openTime"), r.open_time) ?? r.open_time;
+    const closeTime = window.prompt(t("closeTime"), r.close_time) ?? r.close_time;
     const { error } = await supabase
       .from("checklist_reports")
       .update({ signed_by: signed, open_time: openTime, close_time: closeTime })
       .eq("id", r.id);
     if (error) {
-      window.alert("แก้ไขไม่สำเร็จ: " + error.message);
+      window.alert(t("editFail") + error.message);
       return;
     }
     setReports((prev) =>
@@ -199,14 +202,15 @@ function ReportsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30 flex items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
+          <div className="flex justify-end mb-2">
+            <LangToggle />
+          </div>
           <div className="flex flex-col items-center text-center mb-4">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
               <Lock className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-xl font-semibold">Reports — Restricted</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              ใส่รหัสผ่านเพื่อเข้าดูรีพอร์ท
-            </p>
+            <h1 className="text-xl font-semibold">{t("restricted")}</h1>
+            <p className="text-sm text-muted-foreground mt-1">{t("enterToView")}</p>
           </div>
           <form
             onSubmit={(e) => {
@@ -215,7 +219,7 @@ function ReportsPage() {
                 setUnlocked(true);
                 setPwError("");
               } else {
-                setPwError("รหัสผ่านไม่ถูกต้อง");
+                setPwError(t("pwWrong"));
               }
             }}
             className="space-y-3"
@@ -230,10 +234,10 @@ function ReportsPage() {
             />
             {pwError && <p className="text-xs text-destructive">{pwError}</p>}
             <Button type="submit" className="w-full">
-              เข้าสู่ระบบ
+              {t("login")}
             </Button>
             <Button asChild variant="ghost" className="w-full">
-              <Link to="/daily">ย้อนกลับ</Link>
+              <Link to="/daily">{t("back")}</Link>
             </Button>
           </form>
         </div>
@@ -244,15 +248,16 @@ function ReportsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+        <div className="flex justify-end mb-2">
+          <LangToggle />
+        </div>
         <header className="text-center mb-6">
           <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
             <Wine className="h-3.5 w-3.5" />
-            Bar Operations
+            {t("barOperations")}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Report History</h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            Browse all past checklist submissions
-          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{t("reportHistory")}</h1>
+          <p className="text-sm text-muted-foreground mt-2">{t("browseAll")}</p>
         </header>
 
         <nav className="flex justify-center gap-2 mb-6 p-1 rounded-full border bg-card max-w-md mx-auto">
@@ -260,13 +265,13 @@ function ReportsPage() {
             to="/daily"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full text-muted-foreground hover:text-foreground"
           >
-            Daily
+            {t("daily")}
           </Link>
           <Link
             to="/monthly"
             className="flex-1 text-center text-sm font-medium px-4 py-2 rounded-full text-muted-foreground hover:text-foreground"
           >
-            Weekly Cleaning
+            {t("weeklyCleaning")}
           </Link>
           <Link
             to="/reports"
@@ -276,11 +281,10 @@ function ReportsPage() {
                 "flex-1 text-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground",
             }}
           >
-            Reports
+            {t("reports")}
           </Link>
         </nav>
 
-        {/* Outlet selector — choose one outlet or all */}
         <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
           {OUTLET_OPTIONS.map((o) => (
             <button
@@ -292,7 +296,7 @@ function ReportsPage() {
                   : "bg-card hover:bg-accent/40"
               }`}
             >
-              {o}
+              {outletLabel(o)}
             </button>
           ))}
         </div>
@@ -300,9 +304,9 @@ function ReportsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
-              <TabsTrigger value="daily">Daily</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
-              <TabsTrigger value="yearly">Yearly</TabsTrigger>
+              <TabsTrigger value="daily">{t("daily")}</TabsTrigger>
+              <TabsTrigger value="monthly">{t("monthly")}</TabsTrigger>
+              <TabsTrigger value="yearly">{t("yearly")}</TabsTrigger>
             </TabsList>
           </Tabs>
           <Button
@@ -312,16 +316,18 @@ function ReportsPage() {
             disabled={filtered.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Download PDF — {outlet}
+            {t("download", { outlet: outletLabel(outlet) })}
           </Button>
         </div>
 
         {loading ? (
-          <p className="text-center text-muted-foreground py-12">Loading...</p>
+          <p className="text-center text-muted-foreground py-12">{t("loading")}</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 rounded-2xl border bg-card">
             <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">ยังไม่มีรีพอร์ทของ {outlet}</p>
+            <p className="text-muted-foreground">
+              {t("noReportsFor", { outlet: outletLabel(outlet) })}
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -352,9 +358,9 @@ function ReportsPage() {
                               <span className="text-xs text-muted-foreground">{r.report_date}</span>
                             </div>
                             <p className="text-xs text-muted-foreground truncate">
-                              Signed by {r.signed_by}
-                              {r.open_time && ` · Open ${r.open_time}`}
-                              {r.close_time && ` · Close ${r.close_time}`}
+                              {t("signedBy")} {r.signed_by}
+                              {r.open_time && ` · ${t("openTime")} ${r.open_time}`}
+                              {r.close_time && ` · ${t("closeTime")} ${r.close_time}`}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
@@ -369,7 +375,7 @@ function ReportsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(r)}
-                            aria-label="Edit"
+                            aria-label={t("editAria")}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -377,7 +383,7 @@ function ReportsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(r.id)}
-                            aria-label="Delete"
+                            aria-label={t("deleteAria")}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -385,9 +391,9 @@ function ReportsPage() {
                       </div>
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
-                          <TaskList title="Open Bar" tasks={r.open_tasks} />
-                          <TaskList title="Close Bar" tasks={r.close_tasks} />
-                          <TaskList title="Weekly Cleaning" tasks={r.monthly_tasks} />
+                          <TaskList title={t("openBar")} tasks={r.open_tasks} />
+                          <TaskList title={t("closeBar")} tasks={r.close_tasks} />
+                          <TaskList title={t("weeklyCleaning")} tasks={r.monthly_tasks} />
                         </div>
                       )}
                     </article>
@@ -400,14 +406,14 @@ function ReportsPage() {
 
         <div className="mt-8 flex flex-wrap justify-center gap-2">
           <Button asChild variant="outline">
-            <Link to="/daily">Back to checklist</Link>
+            <Link to="/daily">{t("backToChecklist")}</Link>
           </Button>
           <Button variant="outline" onClick={() => changePassword("reports")}>
             <KeyRound className="h-4 w-4 mr-2" />
-            Change password
+            {t("changePassword")}
           </Button>
           <Button variant="ghost" onClick={() => setUnlocked(false)}>
-            Lock
+            {t("lock")}
           </Button>
         </div>
       </div>
@@ -423,13 +429,13 @@ function TaskList({ title, tasks }: { title: string; tasks: Task[] }) {
         {title}
       </h3>
       <ul className="space-y-1.5">
-        {tasks.map((t) => (
-          <li key={t.id} className="flex items-start gap-2 text-sm">
-            <span className="mt-0.5">{t.done ? "✅" : "⬜"}</span>
+        {tasks.map((task) => (
+          <li key={task.id} className="flex items-start gap-2 text-sm">
+            <span className="mt-0.5">{task.done ? "✅" : "⬜"}</span>
             <div className="flex-1">
-              <p className={t.done ? "line-through text-muted-foreground" : ""}>{t.text}</p>
-              {t.remark && (
-                <p className="text-xs text-muted-foreground italic">{t.remark}</p>
+              <p className={task.done ? "line-through text-muted-foreground" : ""}>{task.text}</p>
+              {task.remark && (
+                <p className="text-xs text-muted-foreground italic">{task.remark}</p>
               )}
             </div>
           </li>

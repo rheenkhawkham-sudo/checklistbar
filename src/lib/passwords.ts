@@ -39,42 +39,53 @@ export function setPassword(kind: PasswordKind, value: string) {
   safeSet(STORAGE_KEY[kind], value);
 }
 
-export function requirePassword(
-  kind: PasswordKind,
-  label = "กรุณาใส่รหัสผ่าน",
-): boolean {
+export interface PromptMessages {
+  prompt: string;
+  wrong: string;
+}
+export interface ChangeMessages {
+  current: string;
+  wrongCurrent: string;
+  next: string;
+  lengthErr: string;
+  confirm: string;
+  mismatch: string;
+  changed: string;
+}
+
+export function requirePassword(kind: PasswordKind, msgs: PromptMessages): boolean {
   if (typeof window === "undefined") return false;
-  const pw = window.prompt(label);
+  const pw = window.prompt(msgs.prompt);
   if (pw === null) return false;
   if (pw !== getPassword(kind)) {
-    window.alert("รหัสผ่านไม่ถูกต้อง");
+    window.alert(msgs.wrong);
     return false;
   }
   return true;
 }
 
-export function changePassword(kind: PasswordKind): boolean {
+export function changePassword(kind: PasswordKind, msgs: ChangeMessages): boolean {
   if (typeof window === "undefined") return false;
-  const current = window.prompt("ใส่รหัสผ่านปัจจุบัน");
+  const current = window.prompt(msgs.current);
   if (current === null) return false;
   if (current !== getPassword(kind)) {
-    window.alert("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+    window.alert(msgs.wrongCurrent);
     return false;
   }
-  const next = window.prompt("ตั้งรหัสผ่านใหม่ (4-20 ตัวอักษร)");
+  const next = window.prompt(msgs.next);
   if (next === null) return false;
   const trimmed = next.trim();
   if (trimmed.length < 4 || trimmed.length > 20) {
-    window.alert("รหัสผ่านใหม่ต้องมีความยาว 4-20 ตัว");
+    window.alert(msgs.lengthErr);
     return false;
   }
-  const confirm = window.prompt("ยืนยันรหัสผ่านใหม่อีกครั้ง");
+  const confirm = window.prompt(msgs.confirm);
   if (confirm === null) return false;
   if (confirm !== trimmed) {
-    window.alert("รหัสผ่านยืนยันไม่ตรงกัน");
+    window.alert(msgs.mismatch);
     return false;
   }
   setPassword(kind, trimmed);
-  window.alert("เปลี่ยนรหัสผ่านเรียบร้อย");
+  window.alert(msgs.changed);
   return true;
 }

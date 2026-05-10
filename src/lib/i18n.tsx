@@ -1,0 +1,245 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Languages } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export type Lang = "en" | "th";
+const STORAGE_KEY = "app:lang";
+
+const dict = {
+  en: {
+    barOperations: "Bar Operations",
+    barChecklist: "Bar Checklist",
+    selectOutlet: "Select Outlet",
+    separateData: "All data, tasks, and reports are kept separate per outlet.",
+    daily: "Daily",
+    weeklyCleaning: "Weekly Cleaning",
+    reports: "Reports",
+    completedSummary: "{outlet} — {done} of {total} tasks completed",
+    dailyShort: "Daily",
+    weeklyShort: "Weekly",
+    outlet: "Outlet",
+    signedBy: "Signed by",
+    fullName: "Your full name",
+    date: "Date",
+    time: "Time",
+    openTime: "Open time",
+    closeTime: "Close time",
+    openBar: "Open Bar",
+    closeBar: "Close Bar",
+    submit: "Submit & Email Report",
+    sending: "Sending...",
+    emailedTo: "Report will be emailed to {n} recipient",
+    emailedToPlural: "Report will be emailed to {n} recipients",
+    emailedToDefault: "Report will be emailed to rheen.khawkham@gmail.com (default)",
+    recipientEmails: "Recipient Emails",
+    upTo5: "Up to 5 recipients.",
+    noRecipients: "No recipients yet. Default: rheen.khawkham@gmail.com",
+    edit: "Edit",
+    done: "Done",
+    password: "Password",
+    addTask: "Add a new task...",
+    noTasks: "No tasks yet.",
+    addOneAbove: " Add one above.",
+    remark: "Remark...",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    deleteAria: "Delete",
+    editAria: "Edit",
+    removeAria: "Remove",
+    addEmail: "Add email",
+    invalidEmail: "Invalid email",
+    max5: "Maximum 5 emails allowed",
+    alreadyAdded: "Email already added",
+    signBeforeSubmit: "Please sign with your name before submitting",
+    submitted: "Submitted! Report sent to {to}",
+    sendFailed: "Failed to send email. Please try again.",
+    reportHistory: "Report History",
+    browseAll: "Browse all past checklist submissions",
+    restricted: "Reports — Restricted",
+    enterToView: "Enter password to view reports",
+    login: "Sign in",
+    back: "Back",
+    monthly: "Monthly",
+    yearly: "Yearly",
+    allOutlets: "All Outlets",
+    download: "Download PDF — {outlet}",
+    noReportsFor: "No reports yet for {outlet}",
+    loading: "Loading...",
+    deleteConfirm: "Delete this report?",
+    deleteFail: "Failed to delete: ",
+    editFail: "Failed to update: ",
+    enterToEditTasks: "Enter password to edit tasks",
+    enterToEditEmails: "Enter password to edit recipient emails",
+    enterToEditReport: "Enter password to edit this report",
+    enterToDeleteReport: "Enter password to delete this report",
+    backToChecklist: "Back to checklist",
+    changePassword: "Change password",
+    lock: "Lock",
+    promptCurrent: "Current password",
+    promptNew: "New password (4-20 chars)",
+    promptConfirm: "Confirm new password",
+    pwWrong: "Wrong password",
+    pwLengthErr: "Password must be 4-20 characters",
+    pwMismatch: "Passwords do not match",
+    pwChanged: "Password changed",
+    promptSignedBy: "Signed by",
+    wrongPwAlert: "Wrong password",
+  },
+  th: {
+    barOperations: "ปฏิบัติงานบาร์",
+    barChecklist: "เช็คลิสต์บาร์",
+    selectOutlet: "เลือกเอ้าเลท",
+    separateData: "ข้อมูล, งาน และรีพอร์ทของแต่ละเอ้าเลทถูกแยกออกจากกัน",
+    daily: "รายวัน",
+    weeklyCleaning: "ทำความสะอาดประจำสัปดาห์",
+    reports: "รีพอร์ท",
+    completedSummary: "{outlet} — เสร็จ {done} จาก {total} งาน",
+    dailyShort: "รายวัน",
+    weeklyShort: "สัปดาห์",
+    outlet: "เอ้าเลท",
+    signedBy: "ผู้ทำ",
+    fullName: "ชื่อ-นามสกุล",
+    date: "วันที่",
+    time: "เวลา",
+    openTime: "เวลาเปิด",
+    closeTime: "เวลาปิด",
+    openBar: "เปิดบาร์",
+    closeBar: "ปิดบาร์",
+    submit: "ส่งรีพอร์ทและอีเมล",
+    sending: "กำลังส่ง...",
+    emailedTo: "ส่งรีพอร์ทไปยัง {n} อีเมล",
+    emailedToPlural: "ส่งรีพอร์ทไปยัง {n} อีเมล",
+    emailedToDefault: "ส่งรีพอร์ทไปยัง rheen.khawkham@gmail.com (ค่าเริ่มต้น)",
+    recipientEmails: "อีเมลผู้รับ",
+    upTo5: "เพิ่มได้สูงสุด 5 อีเมล",
+    noRecipients: "ยังไม่มีอีเมล ค่าเริ่มต้น: rheen.khawkham@gmail.com",
+    edit: "แก้ไข",
+    done: "เสร็จ",
+    password: "รหัสผ่าน",
+    addTask: "เพิ่มงานใหม่...",
+    noTasks: "ยังไม่มีงาน",
+    addOneAbove: " เพิ่มด้านบน",
+    remark: "หมายเหตุ...",
+    moveUp: "เลื่อนขึ้น",
+    moveDown: "เลื่อนลง",
+    deleteAria: "ลบ",
+    editAria: "แก้ไข",
+    removeAria: "ลบ",
+    addEmail: "เพิ่มอีเมล",
+    invalidEmail: "อีเมลไม่ถูกต้อง",
+    max5: "เพิ่มได้สูงสุด 5 อีเมลเท่านั้น",
+    alreadyAdded: "เพิ่มอีเมลนี้แล้ว",
+    signBeforeSubmit: "กรุณาเซ็นชื่อก่อนส่ง",
+    submitted: "ส่งสำเร็จ! ส่งรีพอร์ทไปยัง {to}",
+    sendFailed: "ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่",
+    reportHistory: "ประวัติรีพอร์ท",
+    browseAll: "ดูประวัติการส่งเช็คลิสต์ทั้งหมด",
+    restricted: "รีพอร์ท — ต้องใช้รหัสผ่าน",
+    enterToView: "ใส่รหัสผ่านเพื่อเข้าดูรีพอร์ท",
+    login: "เข้าสู่ระบบ",
+    back: "ย้อนกลับ",
+    monthly: "รายเดือน",
+    yearly: "รายปี",
+    allOutlets: "ทุกเอ้าเลท",
+    download: "ดาวน์โหลด PDF — {outlet}",
+    noReportsFor: "ยังไม่มีรีพอร์ทของ {outlet}",
+    loading: "กำลังโหลด...",
+    deleteConfirm: "ยืนยันการลบรีพอร์ทนี้?",
+    deleteFail: "ลบไม่สำเร็จ: ",
+    editFail: "แก้ไขไม่สำเร็จ: ",
+    enterToEditTasks: "ใส่รหัสผ่านเพื่อแก้ไขรายการ",
+    enterToEditEmails: "ใส่รหัสผ่านเพื่อแก้ไขรายชื่ออีเมล",
+    enterToEditReport: "ใส่รหัสผ่านเพื่อแก้ไขรีพอร์ท",
+    enterToDeleteReport: "ใส่รหัสผ่านเพื่อลบรีพอร์ท",
+    backToChecklist: "กลับไปยังเช็คลิสต์",
+    changePassword: "เปลี่ยนรหัสผ่าน",
+    lock: "ล็อก",
+    promptCurrent: "ใส่รหัสผ่านปัจจุบัน",
+    promptNew: "ตั้งรหัสผ่านใหม่ (4-20 ตัวอักษร)",
+    promptConfirm: "ยืนยันรหัสผ่านใหม่อีกครั้ง",
+    pwWrong: "รหัสผ่านไม่ถูกต้อง",
+    pwLengthErr: "รหัสผ่านใหม่ต้องมีความยาว 4-20 ตัว",
+    pwMismatch: "รหัสผ่านยืนยันไม่ตรงกัน",
+    pwChanged: "เปลี่ยนรหัสผ่านเรียบร้อย",
+    promptSignedBy: "ผู้ทำ",
+    wrongPwAlert: "รหัสผ่านไม่ถูกต้อง",
+  },
+} as const;
+
+export type TKey = keyof (typeof dict)["en"];
+
+interface I18nCtx {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: TKey, vars?: Record<string, string | number>) => string;
+}
+
+const Ctx = createContext<I18nCtx | null>(null);
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("en");
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY) as Lang | null;
+      if (stored === "en" || stored === "th") setLangState(stored);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setLang = useCallback((l: Lang) => {
+    setLangState(l);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, l);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const t = useCallback(
+    (key: TKey, vars?: Record<string, string | number>) => {
+      let s: string = dict[lang][key] ?? dict.en[key] ?? key;
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+          s = s.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+        }
+      }
+      return s;
+    },
+    [lang],
+  );
+
+  const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useI18n() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useI18n must be used within I18nProvider");
+  return ctx;
+}
+
+export function LangToggle() {
+  const { lang, setLang } = useI18n();
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => setLang(lang === "en" ? "th" : "en")}
+      aria-label="Toggle language"
+    >
+      <Languages className="h-4 w-4 mr-1" />
+      {lang === "en" ? "ไทย" : "EN"}
+    </Button>
+  );
+}
