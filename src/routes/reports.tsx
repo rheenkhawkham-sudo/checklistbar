@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, FileText, Wine, Download, Trash2, Pencil, Lock } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
