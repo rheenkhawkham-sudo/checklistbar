@@ -176,7 +176,18 @@ export function ChecklistPage({ mode }: Props) {
   const { t } = useI18n();
 
   const [outlet, setOutletState] = useState<Outlet>(OUTLETS[0]);
-  const [template, setTemplate] = useState<OutletTemplate>(DEFAULT_TEMPLATE);
+  const [templates, setTemplates] = useState<Record<Outlet, OutletTemplate>>(
+    () => Object.fromEntries(OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
+  );
+  const template = templates[outlet];
+  const setTemplate = (updater: OutletTemplate | ((prev: OutletTemplate) => OutletTemplate)) => {
+    setTemplates((prev) => {
+      const cur = prev[outletRef.current];
+      const next = typeof updater === "function" ? (updater as (p: OutletTemplate) => OutletTemplate)(cur) : updater;
+      if (next === cur) return prev;
+      return { ...prev, [outletRef.current]: next };
+    });
+  };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
