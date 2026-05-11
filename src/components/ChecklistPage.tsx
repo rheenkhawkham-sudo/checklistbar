@@ -176,7 +176,18 @@ export function ChecklistPage({ mode }: Props) {
   const { t } = useI18n();
 
   const [outlet, setOutletState] = useState<Outlet>(OUTLETS[0]);
-  const [template, setTemplate] = useState<OutletTemplate>(DEFAULT_TEMPLATE);
+  const [templates, setTemplates] = useState<Record<Outlet, OutletTemplate>>(
+    () => Object.fromEntries(OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
+  );
+  const template = templates[outlet];
+  const setTemplate = (updater: OutletTemplate | ((prev: OutletTemplate) => OutletTemplate)) => {
+    setTemplates((prev) => {
+      const cur = prev[outletRef.current];
+      const next = typeof updater === "function" ? (updater as (p: OutletTemplate) => OutletTemplate)(cur) : updater;
+      if (next === cur) return prev;
+      return { ...prev, [outletRef.current]: next };
+    });
+  };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -198,17 +209,19 @@ export function ChecklistPage({ mode }: Props) {
   };
 
   const outletRef = useRef<Outlet>(outlet);
-  const templateRef = useRef<OutletTemplate>(template);
+  const templatesRef = useRef<Record<Outlet, OutletTemplate>>(templates);
   const recipientsRef = useRef<string[]>(recipients);
-  const lastSyncedTplCanonRef = useRef<string>("");
+  const lastSyncedTplCanonRef = useRef<Record<Outlet, string>>(
+    Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
+  );
   const lastSyncedRecCanonRef = useRef<string>("");
 
   useEffect(() => {
     outletRef.current = outlet;
   }, [outlet]);
   useEffect(() => {
-    templateRef.current = template;
-  }, [template]);
+    templatesRef.current = templates;
+  }, [templates]);
   useEffect(() => {
     recipientsRef.current = recipients;
   }, [recipients]);
@@ -247,6 +260,10 @@ export function ChecklistPage({ mode }: Props) {
         return same(tpl.open, def.open) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
       };
 
+      const loaded: Record<Outlet, OutletTemplate> = Object.fromEntries(
+        OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()]),
+      ) as Record<Outlet, OutletTemplate>;
+
       await Promise.all(
         OUTLETS.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
@@ -255,15 +272,11 @@ export function ChecklistPage({ mode }: Props) {
             close: stripTemplate(raw?.close),
             monthly: stripTemplate(raw?.monthly),
           };
-          if (tpl.open.length === 0 && tpl.close.length === 0 && tpl.monthly.length === 0) {
-            // nothing stored at all — leave defaults
-            map.set(STATE_KEY_TEMPLATE(o), DEFAULT_TEMPLATE() as unknown as never);
-            return;
-          }
-          if (!isDefaultTpl(tpl)) {
-            map.set(STATE_KEY_TEMPLATE(o), tpl as unknown as never);
-            return;
-          }
+          const storedCount = tpl.open.length + tpl.close.length + tpl.monthly.length;
+          // Always also peek at the latest submitted report — if it has more
+          // tasks than what's currently stored OR the stored template is the
+          // bare default, restore from the report so today's added tasks come
+          // back per outlet.
           const { data: report } = await supabase
             .from("checklist_reports")
             .select("open_tasks,close_tasks,monthly_tasks")
@@ -271,34 +284,39 @@ export function ChecklistPage({ mode }: Props) {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          if (!report) {
-            map.set(STATE_KEY_TEMPLATE(o), tpl as unknown as never);
-            return;
+          const reportTpl: OutletTemplate | null = report
+            ? {
+                open: stripTemplate((report.open_tasks ?? []) as unknown as Task[]),
+                close: stripTemplate((report.close_tasks ?? []) as unknown as Task[]),
+                monthly: stripTemplate((report.monthly_tasks ?? []) as unknown as Task[]),
+              }
+            : null;
+          const reportCount = reportTpl
+            ? reportTpl.open.length + reportTpl.close.length + reportTpl.monthly.length
+            : 0;
+          const useStored =
+            storedCount > 0 &&
+            !isDefaultTpl(tpl) &&
+            (reportCount === 0 || storedCount >= reportCount);
+          let final: OutletTemplate;
+          if (useStored) {
+            final = tpl;
+          } else if (reportTpl && reportCount > 0) {
+            final = reportTpl;
+            await pushState(STATE_KEY_TEMPLATE(o), reportTpl);
+          } else if (storedCount > 0) {
+            final = tpl;
+          } else {
+            final = DEFAULT_TEMPLATE();
           }
-          const restored: OutletTemplate = {
-            open: stripTemplate((report.open_tasks ?? []) as unknown as Task[]),
-            close: stripTemplate((report.close_tasks ?? []) as unknown as Task[]),
-            monthly: stripTemplate((report.monthly_tasks ?? []) as unknown as Task[]),
-          };
-          map.set(STATE_KEY_TEMPLATE(o), restored as unknown as never);
-          await pushState(STATE_KEY_TEMPLATE(o), restored);
+          loaded[o] = final;
         }),
       );
       if (!active) return;
 
-      const tplRaw = map.get(STATE_KEY_TEMPLATE(initialOutlet)) as Partial<OutletTemplate> | undefined;
-      const initialTpl: OutletTemplate = {
-        open: stripTemplate(tplRaw?.open) ?? DEFAULT_TEMPLATE().open,
-        close: stripTemplate(tplRaw?.close) ?? DEFAULT_TEMPLATE().close,
-        monthly: stripTemplate(tplRaw?.monthly) ?? DEFAULT_TEMPLATE().monthly,
-      };
-      if (initialTpl.open.length + initialTpl.close.length + initialTpl.monthly.length === 0) {
-        const def = DEFAULT_TEMPLATE();
-        setTemplate(def);
-        lastSyncedTplCanonRef.current = canon(def);
-      } else {
-        setTemplate(initialTpl);
-        lastSyncedTplCanonRef.current = canon(initialTpl);
+      setTemplates(loaded);
+      for (const o of OUTLETS) {
+        lastSyncedTplCanonRef.current[o] = canon(loaded[o]);
       }
       const recs = map.get(STATE_KEY_RECIPIENTS);
       const initialRecs = Array.isArray(recs) ? (recs as string[]) : [];
@@ -328,7 +346,7 @@ export function ChecklistPage({ mode }: Props) {
             lastSyncedRecCanonRef.current = remoteCanon;
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
-            if (o !== outletRef.current) return;
+            if (!(OUTLETS as readonly string[]).includes(o)) return;
             const raw = (row.value ?? {}) as Partial<OutletTemplate>;
             const remoteTpl: OutletTemplate = {
               open: stripTemplate(raw.open),
@@ -336,17 +354,18 @@ export function ChecklistPage({ mode }: Props) {
               monthly: stripTemplate(raw.monthly),
             };
             const remoteCanon = canon(remoteTpl);
-            if (remoteCanon === lastSyncedTplCanonRef.current) return;
-            const localCanon = canon(templateRef.current);
-            if (localCanon === lastSyncedTplCanonRef.current) {
-              // No local template edits pending — adopt headings as-is. Done
-              // checkmarks in `work` are unaffected (keyed by id).
-              setTemplate(remoteTpl);
-              lastSyncedTplCanonRef.current = remoteCanon;
+            if (remoteCanon === lastSyncedTplCanonRef.current[o]) return;
+            const localTpl = templatesRef.current[o];
+            const localCanon = canon(localTpl);
+            if (localCanon === lastSyncedTplCanonRef.current[o]) {
+              // No local edits pending for this outlet — adopt remote.
+              setTemplates((prev) => ({ ...prev, [o]: remoteTpl }));
+              lastSyncedTplCanonRef.current[o] = remoteCanon;
               return;
             }
-            // Local has unpushed template edits — keep them; ack remote.
-            lastSyncedTplCanonRef.current = remoteCanon;
+            // Local has unpushed edits — keep them; ack remote so our next
+            // push doesn't get suppressed.
+            lastSyncedTplCanonRef.current[o] = remoteCanon;
           }
         },
       )
@@ -359,8 +378,9 @@ export function ChecklistPage({ mode }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When user changes outlet (local-only), load that outlet's template from
-  // app_state and that outlet's local work from localStorage.
+  // When user changes outlet (local-only), just reload work from localStorage.
+  // Templates for all outlets are kept in memory and synced via realtime, so
+  // we never have to re-fetch them from app_state on outlet switch.
   const outletInitRef = useRef(true);
   useEffect(() => {
     if (outletInitRef.current) {
@@ -368,25 +388,6 @@ export function ChecklistPage({ mode }: Props) {
       return;
     }
     setWork(readLocalWork(outlet));
-    (async () => {
-      const { data: row } = await supabase
-        .from("app_state")
-        .select("value")
-        .eq("key", STATE_KEY_TEMPLATE(outlet))
-        .maybeSingle();
-      const raw = (row?.value ?? {}) as Partial<OutletTemplate>;
-      const tpl: OutletTemplate = {
-        open: stripTemplate(raw.open),
-        close: stripTemplate(raw.close),
-        monthly: stripTemplate(raw.monthly),
-      };
-      const final =
-        tpl.open.length + tpl.close.length + tpl.monthly.length === 0 ? DEFAULT_TEMPLATE() : tpl;
-      setTemplate(final);
-      lastSyncedTplCanonRef.current = canon(final);
-      // mark template push effect as init so it doesn't echo this remote load
-      tplInitRef.current = true;
-    })();
   }, [outlet]);
 
   // Persist work to localStorage whenever it changes (per-device).
@@ -394,27 +395,35 @@ export function ChecklistPage({ mode }: Props) {
     writeLocalWork(outlet, work);
   }, [work, outlet]);
 
-  // Debounced push of TEMPLATE to app_state when the local template changes.
+  // Debounced push of TEMPLATE per outlet to app_state. We diff each outlet
+  // independently against its own lastSynced canon so editing one outlet
+  // never pushes its tasks under another outlet's key (the previous bug).
   const tplInitRef = useRef(true);
   useEffect(() => {
     if (tplInitRef.current) {
       tplInitRef.current = false;
       return;
     }
-    const key = STATE_KEY_TEMPLATE(outlet);
-    const snapshot: OutletTemplate = {
-      open: stripTemplate(template.open),
-      close: stripTemplate(template.close),
-      monthly: stripTemplate(template.monthly),
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    for (const o of OUTLETS) {
+      const snapshot: OutletTemplate = {
+        open: stripTemplate(templates[o].open),
+        close: stripTemplate(templates[o].close),
+        monthly: stripTemplate(templates[o].monthly),
+      };
+      const snapshotCanon = canon(snapshot);
+      if (snapshotCanon === lastSyncedTplCanonRef.current[o]) continue;
+      const key = STATE_KEY_TEMPLATE(o);
+      const tm = setTimeout(async () => {
+        await pushState(key, snapshot);
+        lastSyncedTplCanonRef.current[o] = snapshotCanon;
+      }, 350);
+      timers.push(tm);
+    }
+    return () => {
+      for (const tm of timers) clearTimeout(tm);
     };
-    const snapshotCanon = canon(snapshot);
-    if (snapshotCanon === lastSyncedTplCanonRef.current) return;
-    const tm = setTimeout(async () => {
-      await pushState(key, snapshot);
-      lastSyncedTplCanonRef.current = snapshotCanon;
-    }, 350);
-    return () => clearTimeout(tm);
-  }, [template, outlet]);
+  }, [templates]);
 
   const recInitRef = useRef(true);
   useEffect(() => {
@@ -451,7 +460,7 @@ export function ChecklistPage({ mode }: Props) {
         if (t.remark !== undefined) remark[t.id] = t.remark ?? "";
       }
       // garbage-collect entries for removed tasks in this section
-      const oldSection = templateRef.current[section];
+      const oldSection = templatesRef.current[outletRef.current][section];
       for (const o of oldSection) {
         if (!validIds.has(o.id)) {
           delete done[o.id];
