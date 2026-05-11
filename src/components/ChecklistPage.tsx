@@ -209,17 +209,19 @@ export function ChecklistPage({ mode }: Props) {
   };
 
   const outletRef = useRef<Outlet>(outlet);
-  const templateRef = useRef<OutletTemplate>(template);
+  const templatesRef = useRef<Record<Outlet, OutletTemplate>>(templates);
   const recipientsRef = useRef<string[]>(recipients);
-  const lastSyncedTplCanonRef = useRef<string>("");
+  const lastSyncedTplCanonRef = useRef<Record<Outlet, string>>(
+    Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
+  );
   const lastSyncedRecCanonRef = useRef<string>("");
 
   useEffect(() => {
     outletRef.current = outlet;
   }, [outlet]);
   useEffect(() => {
-    templateRef.current = template;
-  }, [template]);
+    templatesRef.current = templates;
+  }, [templates]);
   useEffect(() => {
     recipientsRef.current = recipients;
   }, [recipients]);
