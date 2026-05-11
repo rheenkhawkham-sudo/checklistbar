@@ -264,6 +264,34 @@ export function ChecklistPage({ mode }: Props) {
         OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()]),
       ) as Record<Outlet, OutletTemplate>;
 
+      const today = new Date().toISOString().slice(0, 10);
+      // Union two task lists by id (fallback text), preserving the order of
+      // `primary` first then appending any extras from `extra` that are not
+      // already represented. This guarantees that tasks added/edited today on
+      // ANY device come back for every outlet on next load.
+      const unionTasks = (primary: Task[], extra: Task[]): Task[] => {
+        const seen = new Set<string>();
+        const keyOf = (t: Task) => `${t.id}::${(t.text ?? "").trim().toLowerCase()}`;
+        const out: Task[] = [];
+        for (const t of primary) {
+          const k = keyOf(t);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push({ id: t.id, text: t.text, done: false });
+        }
+        // also block duplicates by id alone or text alone
+        const idSet = new Set(out.map((x) => x.id));
+        const textSet = new Set(out.map((x) => (x.text ?? "").trim().toLowerCase()));
+        for (const t of extra) {
+          const txt = (t.text ?? "").trim().toLowerCase();
+          if (idSet.has(t.id) || textSet.has(txt)) continue;
+          idSet.add(t.id);
+          textSet.add(txt);
+          out.push({ id: t.id, text: t.text, done: false });
+        }
+        return out;
+      };
+
       await Promise.all(
         OUTLETS.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
@@ -273,43 +301,75 @@ export function ChecklistPage({ mode }: Props) {
             monthly: stripTemplate(raw?.monthly),
           };
           const storedCount = tpl.open.length + tpl.close.length + tpl.monthly.length;
-          // Always also peek at the latest submitted report — if it has more
-          // tasks than what's currently stored OR the stored template is the
-          // bare default, restore from the report so today's added tasks come
-          // back per outlet.
-          const { data: report } = await supabase
-            .from("checklist_reports")
-            .select("open_tasks,close_tasks,monthly_tasks")
-            .eq("outlet", o)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const reportTpl: OutletTemplate | null = report
-            ? {
-                open: stripTemplate((report.open_tasks ?? []) as unknown as Task[]),
-                close: stripTemplate((report.close_tasks ?? []) as unknown as Task[]),
-                monthly: stripTemplate((report.monthly_tasks ?? []) as unknown as Task[]),
-              }
-            : null;
-          const reportCount = reportTpl
-            ? reportTpl.open.length + reportTpl.close.length + reportTpl.monthly.length
-            : 0;
-          const useStored =
-            storedCount > 0 &&
-            !isDefaultTpl(tpl) &&
-            (reportCount === 0 || storedCount >= reportCount);
-          let final: OutletTemplate;
-          if (useStored) {
-            final = tpl;
-          } else if (reportTpl && reportCount > 0) {
-            final = reportTpl;
-            await pushState(STATE_KEY_TEMPLATE(o), reportTpl);
-          } else if (storedCount > 0) {
-            final = tpl;
+
+          // Pull the latest report AND today's reports (could be multiple
+          // submits today) so we can recover any task added/edited today.
+          const [{ data: latest }, { data: todayRows }] = await Promise.all([
+            supabase
+              .from("checklist_reports")
+              .select("open_tasks,close_tasks,monthly_tasks")
+              .eq("outlet", o)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+            supabase
+              .from("checklist_reports")
+              .select("open_tasks,close_tasks,monthly_tasks,created_at")
+              .eq("outlet", o)
+              .eq("report_date", today)
+              .order("created_at", { ascending: false }),
+          ]);
+
+          const toTpl = (r: { open_tasks: unknown; close_tasks: unknown; monthly_tasks: unknown } | null): OutletTemplate | null =>
+            r
+              ? {
+                  open: stripTemplate((r.open_tasks ?? []) as unknown as Task[]),
+                  close: stripTemplate((r.close_tasks ?? []) as unknown as Task[]),
+                  monthly: stripTemplate((r.monthly_tasks ?? []) as unknown as Task[]),
+                }
+              : null;
+
+          const latestTpl = toTpl(latest as never);
+          const todayTpls: OutletTemplate[] = (todayRows ?? [])
+            .map((r) => toTpl(r as never))
+            .filter((x): x is OutletTemplate => !!x);
+
+          // Pick the strongest base: stored (if non-default), else latest report, else default.
+          let base: OutletTemplate;
+          if (storedCount > 0 && !isDefaultTpl(tpl)) {
+            base = tpl;
+          } else if (latestTpl && latestTpl.open.length + latestTpl.close.length + latestTpl.monthly.length > 0) {
+            base = latestTpl;
           } else {
-            final = DEFAULT_TEMPLATE();
+            base = DEFAULT_TEMPLATE();
           }
-          loaded[o] = final;
+
+          // Merge in any task headings from today's reports that aren't
+          // already in the base — these are today's adds/edits that may
+          // have been lost from app_state.
+          let merged: OutletTemplate = base;
+          for (const r of todayTpls) {
+            merged = {
+              open: unionTasks(merged.open, r.open),
+              close: unionTasks(merged.close, r.close),
+              monthly: unionTasks(merged.monthly, r.monthly),
+            };
+          }
+          // Also union with the latest report if base wasn't latest.
+          if (latestTpl && base !== latestTpl) {
+            merged = {
+              open: unionTasks(merged.open, latestTpl.open),
+              close: unionTasks(merged.close, latestTpl.close),
+              monthly: unionTasks(merged.monthly, latestTpl.monthly),
+            };
+          }
+
+          // If we ended up enriching the stored template, push it back so
+          // every device sees the recovered list.
+          if (canon(merged) !== canon(tpl)) {
+            await pushState(STATE_KEY_TEMPLATE(o), merged);
+          }
+          loaded[o] = merged;
         }),
       );
       if (!active) return;
