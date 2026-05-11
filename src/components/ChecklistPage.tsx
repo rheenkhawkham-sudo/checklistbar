@@ -460,7 +460,7 @@ export function ChecklistPage({ mode }: Props) {
         if (t.remark !== undefined) remark[t.id] = t.remark ?? "";
       }
       // garbage-collect entries for removed tasks in this section
-      const oldSection = templateRef.current[section];
+      const oldSection = templatesRef.current[outletRef.current][section];
       for (const o of oldSection) {
         if (!validIds.has(o.id)) {
           delete done[o.id];
