@@ -260,6 +260,10 @@ export function ChecklistPage({ mode }: Props) {
         return same(tpl.open, def.open) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
       };
 
+      const loaded: Record<Outlet, OutletTemplate> = Object.fromEntries(
+        OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()]),
+      ) as Record<Outlet, OutletTemplate>;
+
       await Promise.all(
         OUTLETS.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
@@ -268,15 +272,11 @@ export function ChecklistPage({ mode }: Props) {
             close: stripTemplate(raw?.close),
             monthly: stripTemplate(raw?.monthly),
           };
-          if (tpl.open.length === 0 && tpl.close.length === 0 && tpl.monthly.length === 0) {
-            // nothing stored at all — leave defaults
-            map.set(STATE_KEY_TEMPLATE(o), DEFAULT_TEMPLATE() as unknown as never);
-            return;
-          }
-          if (!isDefaultTpl(tpl)) {
-            map.set(STATE_KEY_TEMPLATE(o), tpl as unknown as never);
-            return;
-          }
+          const storedCount = tpl.open.length + tpl.close.length + tpl.monthly.length;
+          // Always also peek at the latest submitted report — if it has more
+          // tasks than what's currently stored OR the stored template is the
+          // bare default, restore from the report so today's added tasks come
+          // back per outlet.
           const { data: report } = await supabase
             .from("checklist_reports")
             .select("open_tasks,close_tasks,monthly_tasks")
@@ -284,34 +284,39 @@ export function ChecklistPage({ mode }: Props) {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          if (!report) {
-            map.set(STATE_KEY_TEMPLATE(o), tpl as unknown as never);
-            return;
+          const reportTpl: OutletTemplate | null = report
+            ? {
+                open: stripTemplate((report.open_tasks ?? []) as unknown as Task[]),
+                close: stripTemplate((report.close_tasks ?? []) as unknown as Task[]),
+                monthly: stripTemplate((report.monthly_tasks ?? []) as unknown as Task[]),
+              }
+            : null;
+          const reportCount = reportTpl
+            ? reportTpl.open.length + reportTpl.close.length + reportTpl.monthly.length
+            : 0;
+          const useStored =
+            storedCount > 0 &&
+            !isDefaultTpl(tpl) &&
+            (reportCount === 0 || storedCount >= reportCount);
+          let final: OutletTemplate;
+          if (useStored) {
+            final = tpl;
+          } else if (reportTpl && reportCount > 0) {
+            final = reportTpl;
+            await pushState(STATE_KEY_TEMPLATE(o), reportTpl);
+          } else if (storedCount > 0) {
+            final = tpl;
+          } else {
+            final = DEFAULT_TEMPLATE();
           }
-          const restored: OutletTemplate = {
-            open: stripTemplate((report.open_tasks ?? []) as unknown as Task[]),
-            close: stripTemplate((report.close_tasks ?? []) as unknown as Task[]),
-            monthly: stripTemplate((report.monthly_tasks ?? []) as unknown as Task[]),
-          };
-          map.set(STATE_KEY_TEMPLATE(o), restored as unknown as never);
-          await pushState(STATE_KEY_TEMPLATE(o), restored);
+          loaded[o] = final;
         }),
       );
       if (!active) return;
 
-      const tplRaw = map.get(STATE_KEY_TEMPLATE(initialOutlet)) as Partial<OutletTemplate> | undefined;
-      const initialTpl: OutletTemplate = {
-        open: stripTemplate(tplRaw?.open) ?? DEFAULT_TEMPLATE().open,
-        close: stripTemplate(tplRaw?.close) ?? DEFAULT_TEMPLATE().close,
-        monthly: stripTemplate(tplRaw?.monthly) ?? DEFAULT_TEMPLATE().monthly,
-      };
-      if (initialTpl.open.length + initialTpl.close.length + initialTpl.monthly.length === 0) {
-        const def = DEFAULT_TEMPLATE();
-        setTemplate(def);
-        lastSyncedTplCanonRef.current = canon(def);
-      } else {
-        setTemplate(initialTpl);
-        lastSyncedTplCanonRef.current = canon(initialTpl);
+      setTemplates(loaded);
+      for (const o of OUTLETS) {
+        lastSyncedTplCanonRef.current[o] = canon(loaded[o]);
       }
       const recs = map.get(STATE_KEY_RECIPIENTS);
       const initialRecs = Array.isArray(recs) ? (recs as string[]) : [];
