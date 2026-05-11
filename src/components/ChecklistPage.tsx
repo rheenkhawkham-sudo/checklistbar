@@ -346,7 +346,7 @@ export function ChecklistPage({ mode }: Props) {
             lastSyncedRecCanonRef.current = remoteCanon;
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
-            if (o !== outletRef.current) return;
+            if (!(OUTLETS as readonly string[]).includes(o)) return;
             const raw = (row.value ?? {}) as Partial<OutletTemplate>;
             const remoteTpl: OutletTemplate = {
               open: stripTemplate(raw.open),
@@ -354,17 +354,18 @@ export function ChecklistPage({ mode }: Props) {
               monthly: stripTemplate(raw.monthly),
             };
             const remoteCanon = canon(remoteTpl);
-            if (remoteCanon === lastSyncedTplCanonRef.current) return;
-            const localCanon = canon(templateRef.current);
-            if (localCanon === lastSyncedTplCanonRef.current) {
-              // No local template edits pending — adopt headings as-is. Done
-              // checkmarks in `work` are unaffected (keyed by id).
-              setTemplate(remoteTpl);
-              lastSyncedTplCanonRef.current = remoteCanon;
+            if (remoteCanon === lastSyncedTplCanonRef.current[o]) return;
+            const localTpl = templatesRef.current[o];
+            const localCanon = canon(localTpl);
+            if (localCanon === lastSyncedTplCanonRef.current[o]) {
+              // No local edits pending for this outlet — adopt remote.
+              setTemplates((prev) => ({ ...prev, [o]: remoteTpl }));
+              lastSyncedTplCanonRef.current[o] = remoteCanon;
               return;
             }
-            // Local has unpushed template edits — keep them; ack remote.
-            lastSyncedTplCanonRef.current = remoteCanon;
+            // Local has unpushed edits — keep them; ack remote so our next
+            // push doesn't get suppressed.
+            lastSyncedTplCanonRef.current[o] = remoteCanon;
           }
         },
       )
