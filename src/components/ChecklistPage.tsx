@@ -378,8 +378,9 @@ export function ChecklistPage({ mode }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When user changes outlet (local-only), load that outlet's template from
-  // app_state and that outlet's local work from localStorage.
+  // When user changes outlet (local-only), just reload work from localStorage.
+  // Templates for all outlets are kept in memory and synced via realtime, so
+  // we never have to re-fetch them from app_state on outlet switch.
   const outletInitRef = useRef(true);
   useEffect(() => {
     if (outletInitRef.current) {
@@ -387,25 +388,6 @@ export function ChecklistPage({ mode }: Props) {
       return;
     }
     setWork(readLocalWork(outlet));
-    (async () => {
-      const { data: row } = await supabase
-        .from("app_state")
-        .select("value")
-        .eq("key", STATE_KEY_TEMPLATE(outlet))
-        .maybeSingle();
-      const raw = (row?.value ?? {}) as Partial<OutletTemplate>;
-      const tpl: OutletTemplate = {
-        open: stripTemplate(raw.open),
-        close: stripTemplate(raw.close),
-        monthly: stripTemplate(raw.monthly),
-      };
-      const final =
-        tpl.open.length + tpl.close.length + tpl.monthly.length === 0 ? DEFAULT_TEMPLATE() : tpl;
-      setTemplate(final);
-      lastSyncedTplCanonRef.current = canon(final);
-      // mark template push effect as init so it doesn't echo this remote load
-      tplInitRef.current = true;
-    })();
   }, [outlet]);
 
   // Persist work to localStorage whenever it changes (per-device).
@@ -413,27 +395,35 @@ export function ChecklistPage({ mode }: Props) {
     writeLocalWork(outlet, work);
   }, [work, outlet]);
 
-  // Debounced push of TEMPLATE to app_state when the local template changes.
+  // Debounced push of TEMPLATE per outlet to app_state. We diff each outlet
+  // independently against its own lastSynced canon so editing one outlet
+  // never pushes its tasks under another outlet's key (the previous bug).
   const tplInitRef = useRef(true);
   useEffect(() => {
     if (tplInitRef.current) {
       tplInitRef.current = false;
       return;
     }
-    const key = STATE_KEY_TEMPLATE(outlet);
-    const snapshot: OutletTemplate = {
-      open: stripTemplate(template.open),
-      close: stripTemplate(template.close),
-      monthly: stripTemplate(template.monthly),
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    for (const o of OUTLETS) {
+      const snapshot: OutletTemplate = {
+        open: stripTemplate(templates[o].open),
+        close: stripTemplate(templates[o].close),
+        monthly: stripTemplate(templates[o].monthly),
+      };
+      const snapshotCanon = canon(snapshot);
+      if (snapshotCanon === lastSyncedTplCanonRef.current[o]) continue;
+      const key = STATE_KEY_TEMPLATE(o);
+      const tm = setTimeout(async () => {
+        await pushState(key, snapshot);
+        lastSyncedTplCanonRef.current[o] = snapshotCanon;
+      }, 350);
+      timers.push(tm);
+    }
+    return () => {
+      for (const tm of timers) clearTimeout(tm);
     };
-    const snapshotCanon = canon(snapshot);
-    if (snapshotCanon === lastSyncedTplCanonRef.current) return;
-    const tm = setTimeout(async () => {
-      await pushState(key, snapshot);
-      lastSyncedTplCanonRef.current = snapshotCanon;
-    }, 350);
-    return () => clearTimeout(tm);
-  }, [template, outlet]);
+  }, [templates]);
 
   const recInitRef = useRef(true);
   useEffect(() => {
