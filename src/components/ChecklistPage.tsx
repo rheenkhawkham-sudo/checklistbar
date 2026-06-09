@@ -549,6 +549,22 @@ export function ChecklistPage({ mode }: Props) {
     return () => clearTimeout(tm);
   }, [recipients]);
 
+  const namesInitRef = useRef(true);
+  useEffect(() => {
+    if (namesInitRef.current) {
+      namesInitRef.current = false;
+      return;
+    }
+    const snapshot = outletNames;
+    const snapshotCanon = canon(snapshot);
+    if (snapshotCanon === lastSyncedNamesCanonRef.current) return;
+    const tm = setTimeout(async () => {
+      await pushState(STATE_KEY_OUTLET_NAMES, snapshot);
+      lastSyncedNamesCanonRef.current = snapshotCanon;
+    }, 350);
+    return () => clearTimeout(tm);
+  }, [outletNames]);
+
   // Apply a Task[] update from the UI: split into template (id+text) edits
   // and work (done/remark) edits.
   const applySectionUpdate = (section: "open" | "close" | "monthly", next: Task[]) => {
