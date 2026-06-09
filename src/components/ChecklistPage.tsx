@@ -1074,3 +1074,77 @@ function RecipientsSection({
     </section>
   );
 }
+
+function OutletNamesEditor({
+  outletNames,
+  setOutletNames,
+}: {
+  outletNames: Record<Outlet, string>;
+  setOutletNames: (n: Record<Outlet, string>) => void;
+}) {
+  const { t } = useI18n();
+  const { requirePassword } = usePasswords();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Record<Outlet, string>>(outletNames);
+
+  const start = () => {
+    if (!requirePassword("edit", "enterToEditOutlets")) return;
+    setDraft({ ...outletNames });
+    setOpen(true);
+  };
+  const save = () => {
+    const next = { ...outletNames };
+    for (const o of OUTLETS) {
+      const v = (draft[o] ?? "").trim();
+      if (!v) return toast.error(t("outletNameEmpty"));
+      next[o] = v;
+    }
+    setOutletNames(next);
+    setOpen(false);
+    toast.success(t("outletNamesSaved"));
+  };
+
+  return (
+    <>
+      <Button variant="ghost" size="sm" onClick={start} className="h-8 gap-1">
+        <Settings2 className="h-4 w-4" />
+        <span className="hidden sm:inline text-xs">{t("editOutletNames")}</span>
+      </Button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold">{t("editOutletNames")}</h3>
+            <div className="space-y-2 max-h-[60vh] overflow-auto">
+              {OUTLETS.map((o) => (
+                <div key={o} className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{o}</Label>
+                  <Input
+                    value={draft[o] ?? ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
+                    maxLength={60}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                {t("cancel")}
+              </Button>
+              <Button onClick={save}>
+                <Check className="h-4 w-4 mr-1" />
+                {t("save")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
