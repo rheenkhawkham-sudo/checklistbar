@@ -625,9 +625,10 @@ export function ChecklistPage({ mode }: Props) {
     try {
       // Send ONLY this device's currently-selected outlet data. Concurrent
       // submits from other devices/outlets are independent.
+      const outletLabel = outletNames[outlet] || outlet;
       const res = await send({
         data: {
-          outlet,
+          outlet: outletLabel,
           signedBy: data.signedBy,
           reportDate: data.reportDate,
           openTime: data.openTime,
@@ -646,7 +647,7 @@ export function ChecklistPage({ mode }: Props) {
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
       const { error: dbErr } = await supabase.from("checklist_reports").insert({
         report_date: data.reportDate,
-        outlet,
+        outlet: outletLabel,
         signed_by: data.signedBy,
         open_time: data.openTime,
         close_time: data.closeTime,
