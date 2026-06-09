@@ -21,8 +21,19 @@ import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+const OUTLETS = [
+  "Beach Bar",
+  "Pakarang Bar",
+  "Pool Bar",
+  "Family Pool Bar",
+  "Outlet 5",
+  "Outlet 6",
+  "Outlet 7",
+] as const;
 type Outlet = typeof OUTLETS[number];
+const DEFAULT_OUTLET_NAMES: Record<Outlet, string> = Object.fromEntries(
+  OUTLETS.map((o) => [o, o]),
+) as Record<Outlet, string>;
 
 const DEFAULT_OPEN: Task[] = [
   { id: "o1", text: "Stock and restock liquor bottles", done: false },
