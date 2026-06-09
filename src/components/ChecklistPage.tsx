@@ -241,6 +241,10 @@ export function ChecklistPage({ mode }: Props) {
   useEffect(() => {
     recipientsRef.current = recipients;
   }, [recipients]);
+  useEffect(() => {
+    outletNamesRef.current = outletNames;
+  }, [outletNames]);
+
 
   // Wrap setOutlet to persist locally (per-device) — never to app_state.
   const setOutlet = (o: Outlet) => {
