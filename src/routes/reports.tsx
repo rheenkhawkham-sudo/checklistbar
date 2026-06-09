@@ -184,6 +184,42 @@ function ReportsPage() {
     if (!unlocked) return;
     loadReports();
 
+    // Load outlet display names (synced across devices)
+    (async () => {
+      const { data } = await supabase
+        .from("app_state")
+        .select("value")
+        .eq("key", "outlet_names")
+        .maybeSingle();
+      const v = (data?.value ?? {}) as Record<string, string>;
+      if (v && typeof v === "object") {
+        const next: Record<string, string> = {};
+        for (const k of Object.keys(v)) {
+          if (typeof v[k] === "string" && v[k].trim()) next[k] = v[k];
+        }
+        setOutletNames(next);
+      }
+    })();
+
+    const namesChannel = supabase
+      .channel("outlet_names_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_state", filter: "key=eq.outlet_names" },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { value: unknown } | null;
+          const v = (row?.value ?? {}) as Record<string, string>;
+          if (v && typeof v === "object") {
+            const next: Record<string, string> = {};
+            for (const k of Object.keys(v)) {
+              if (typeof v[k] === "string" && v[k].trim()) next[k] = v[k];
+            }
+            setOutletNames(next);
+          }
+        },
+      )
+      .subscribe();
+
     // Realtime: stay synced across all devices viewing reports
     const channel = supabase
       .channel("checklist_reports_sync")
