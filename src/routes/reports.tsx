@@ -28,7 +28,15 @@ export const Route = createFileRoute("/reports")({
 });
 
 
-const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+const OUTLETS = [
+  "Beach Bar",
+  "Pakarang Bar",
+  "Pool Bar",
+  "Family Pool Bar",
+  "Outlet 5",
+  "Outlet 6",
+  "Outlet 7",
+] as const;
 type Outlet = (typeof OUTLETS)[number];
 type OutletSelection = Outlet | "All Outlets";
 const OUTLET_OPTIONS: OutletSelection[] = ["All Outlets", ...OUTLETS];
@@ -148,6 +156,7 @@ function ReportsPage() {
   const [period, setPeriod] = useState<Period>("daily");
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [outletNames, setOutletNames] = useState<Record<string, string>>({});
 
   const [dateMode, setDateMode] = useState<DateMode>("all");
   const [singleDay, setSingleDay] = useState<Date | undefined>(undefined);
@@ -156,7 +165,8 @@ function ReportsPage() {
   const [pickMonth, setPickMonth] = useState<number>(now.getMonth());
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
+  const nameOf = (o: Outlet) => outletNames[o] || o;
+  const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : nameOf(o));
 
   const loadReports = async () => {
     setLoading(true);
@@ -173,6 +183,42 @@ function ReportsPage() {
   useEffect(() => {
     if (!unlocked) return;
     loadReports();
+
+    // Load outlet display names (synced across devices)
+    (async () => {
+      const { data } = await supabase
+        .from("app_state")
+        .select("value")
+        .eq("key", "outlet_names")
+        .maybeSingle();
+      const v = (data?.value ?? {}) as Record<string, string>;
+      if (v && typeof v === "object") {
+        const next: Record<string, string> = {};
+        for (const k of Object.keys(v)) {
+          if (typeof v[k] === "string" && v[k].trim()) next[k] = v[k];
+        }
+        setOutletNames(next);
+      }
+    })();
+
+    const namesChannel = supabase
+      .channel("outlet_names_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_state", filter: "key=eq.outlet_names" },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { value: unknown } | null;
+          const v = (row?.value ?? {}) as Record<string, string>;
+          if (v && typeof v === "object") {
+            const next: Record<string, string> = {};
+            for (const k of Object.keys(v)) {
+              if (typeof v[k] === "string" && v[k].trim()) next[k] = v[k];
+            }
+            setOutletNames(next);
+          }
+        },
+      )
+      .subscribe();
 
     // Realtime: stay synced across all devices viewing reports
     const channel = supabase
@@ -199,11 +245,16 @@ function ReportsPage() {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(namesChannel);
     };
   }, [unlocked]);
 
   const filtered = useMemo(() => {
-    let list = outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet);
+    let list = reports;
+    if (outlet !== "All Outlets") {
+      const dn = nameOf(outlet);
+      list = reports.filter((r) => r.outlet === outlet || r.outlet === dn);
+    }
     if (dateMode === "day" && singleDay) {
       const key = format(singleDay, "yyyy-MM-dd");
       list = list.filter((r) => r.report_date === key);

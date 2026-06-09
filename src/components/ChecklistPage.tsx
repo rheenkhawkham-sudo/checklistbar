@@ -21,8 +21,19 @@ import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/server/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+const OUTLETS = [
+  "Beach Bar",
+  "Pakarang Bar",
+  "Pool Bar",
+  "Family Pool Bar",
+  "Outlet 5",
+  "Outlet 6",
+  "Outlet 7",
+] as const;
 type Outlet = typeof OUTLETS[number];
+const DEFAULT_OUTLET_NAMES: Record<Outlet, string> = Object.fromEntries(
+  OUTLETS.map((o) => [o, o]),
+) as Record<Outlet, string>;
 
 const DEFAULT_OPEN: Task[] = [
   { id: "o1", text: "Stock and restock liquor bottles", done: false },
@@ -70,6 +81,7 @@ const DEFAULT_DATA = (): OutletData => ({
 // headings still propagate to every device.
 const STATE_KEY_TEMPLATE = (o: Outlet) => `outlet:${o}`; // shared (template only)
 const STATE_KEY_RECIPIENTS = "recipients"; // shared
+const STATE_KEY_OUTLET_NAMES = "outlet_names"; // shared display names
 
 const LOCAL_KEY_OUTLET = "checklist:currentOutlet"; // per-device
 const LOCAL_KEY_WORK = (o: Outlet) => `checklist:work:${o}`; // per-device
@@ -190,6 +202,7 @@ export function ChecklistPage({ mode }: Props) {
   };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
   const [recipients, setRecipients] = useState<string[]>([]);
+  const [outletNames, setOutletNames] = useState<Record<Outlet, string>>(DEFAULT_OUTLET_NAMES);
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
@@ -215,6 +228,9 @@ export function ChecklistPage({ mode }: Props) {
     Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
   );
   const lastSyncedRecCanonRef = useRef<string>("");
+  const outletNamesRef = useRef<Record<Outlet, string>>(outletNames);
+  const lastSyncedNamesCanonRef = useRef<string>("");
+
 
   useEffect(() => {
     outletRef.current = outlet;
@@ -225,6 +241,10 @@ export function ChecklistPage({ mode }: Props) {
   useEffect(() => {
     recipientsRef.current = recipients;
   }, [recipients]);
+  useEffect(() => {
+    outletNamesRef.current = outletNames;
+  }, [outletNames]);
+
 
   // Wrap setOutlet to persist locally (per-device) — never to app_state.
   const setOutlet = (o: Outlet) => {
@@ -382,6 +402,17 @@ export function ChecklistPage({ mode }: Props) {
       const initialRecs = Array.isArray(recs) ? (recs as string[]) : [];
       setRecipients(initialRecs);
       lastSyncedRecCanonRef.current = canon(initialRecs);
+
+      const rawNames = map.get(STATE_KEY_OUTLET_NAMES) as Record<string, string> | undefined;
+      const initialNames: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
+      if (rawNames && typeof rawNames === "object") {
+        for (const o of OUTLETS) {
+          const n = rawNames[o];
+          if (typeof n === "string" && n.trim()) initialNames[o] = n;
+        }
+      }
+      setOutletNames(initialNames);
+      lastSyncedNamesCanonRef.current = canon(initialNames);
     })();
 
     // Realtime: only listen for shared template / recipients changes.
@@ -393,6 +424,24 @@ export function ChecklistPage({ mode }: Props) {
         (payload) => {
           const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
           if (!row) return;
+          if (row.key === STATE_KEY_OUTLET_NAMES) {
+            const raw = (row.value ?? {}) as Record<string, string>;
+            const next: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
+            for (const o of OUTLETS) {
+              const n = raw?.[o];
+              if (typeof n === "string" && n.trim()) next[o] = n;
+            }
+            const remoteCanon = canon(next);
+            if (remoteCanon === lastSyncedNamesCanonRef.current) return;
+            const localCanon = canon(outletNamesRef.current);
+            if (localCanon !== lastSyncedNamesCanonRef.current) {
+              lastSyncedNamesCanonRef.current = remoteCanon;
+              return;
+            }
+            setOutletNames(next);
+            lastSyncedNamesCanonRef.current = remoteCanon;
+            return;
+          }
           if (row.key === STATE_KEY_RECIPIENTS) {
             const next = Array.isArray(row.value) ? (row.value as string[]) : [];
             const remoteCanon = canon(next);
@@ -500,6 +549,22 @@ export function ChecklistPage({ mode }: Props) {
     return () => clearTimeout(tm);
   }, [recipients]);
 
+  const namesInitRef = useRef(true);
+  useEffect(() => {
+    if (namesInitRef.current) {
+      namesInitRef.current = false;
+      return;
+    }
+    const snapshot = outletNames;
+    const snapshotCanon = canon(snapshot);
+    if (snapshotCanon === lastSyncedNamesCanonRef.current) return;
+    const tm = setTimeout(async () => {
+      await pushState(STATE_KEY_OUTLET_NAMES, snapshot);
+      lastSyncedNamesCanonRef.current = snapshotCanon;
+    }, 350);
+    return () => clearTimeout(tm);
+  }, [outletNames]);
+
   // Apply a Task[] update from the UI: split into template (id+text) edits
   // and work (done/remark) edits.
   const applySectionUpdate = (section: "open" | "close" | "monthly", next: Task[]) => {
@@ -560,9 +625,10 @@ export function ChecklistPage({ mode }: Props) {
     try {
       // Send ONLY this device's currently-selected outlet data. Concurrent
       // submits from other devices/outlets are independent.
+      const outletLabel = outletNames[outlet] || outlet;
       const res = await send({
         data: {
-          outlet,
+          outlet: outletLabel,
           signedBy: data.signedBy,
           reportDate: data.reportDate,
           openTime: data.openTime,
@@ -581,7 +647,7 @@ export function ChecklistPage({ mode }: Props) {
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
       const { error: dbErr } = await supabase.from("checklist_reports").insert({
         report_date: data.reportDate,
-        outlet,
+        outlet: outletLabel,
         signed_by: data.signedBy,
         open_time: data.openTime,
         close_time: data.closeTime,
@@ -624,7 +690,10 @@ export function ChecklistPage({ mode }: Props) {
         </header>
 
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
-          <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
+            <OutletNamesEditor outletNames={outletNames} setOutletNames={setOutletNames} />
+          </div>
           <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
               <SelectValue />
@@ -632,7 +701,7 @@ export function ChecklistPage({ mode }: Props) {
             <SelectContent>
               {OUTLETS.map((o) => (
                 <SelectItem key={o} value={o} className="text-base">
-                  {o}
+                  {outletNames[o] || o}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -676,7 +745,7 @@ export function ChecklistPage({ mode }: Props) {
         <section className="flex flex-col items-center justify-center mb-8 rounded-3xl border bg-card p-8 shadow-sm">
           <CircularProgress percent={combinedP.percent} />
           <p className="mt-4 text-sm text-muted-foreground tabular-nums">
-            {t("completedSummary", { outlet, done: combinedP.done, total: combinedP.total })}
+            {t("completedSummary", { outlet: outletNames[outlet] || outlet, done: combinedP.done, total: combinedP.total })}
           </p>
 
           <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4 w-full max-w-md">
@@ -712,7 +781,7 @@ export function ChecklistPage({ mode }: Props) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>{t("outlet")}</Label>
-                  <Input value={outlet} disabled />
+                  <Input value={outletNames[outlet] || outlet} disabled />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`signedBy-${timeId}`}>{t("signedBy")}</Label>
@@ -775,7 +844,7 @@ export function ChecklistPage({ mode }: Props) {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>{t("outlet")}</Label>
-                      <Input value={outlet} disabled />
+                      <Input value={outletNames[outlet] || outlet} disabled />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signedBy-m">{t("signedBy")}</Label>
@@ -1005,3 +1074,77 @@ function RecipientsSection({
     </section>
   );
 }
+
+function OutletNamesEditor({
+  outletNames,
+  setOutletNames,
+}: {
+  outletNames: Record<Outlet, string>;
+  setOutletNames: (n: Record<Outlet, string>) => void;
+}) {
+  const { t } = useI18n();
+  const { requirePassword } = usePasswords();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Record<Outlet, string>>(outletNames);
+
+  const start = () => {
+    if (!requirePassword("edit", "enterToEditOutlets")) return;
+    setDraft({ ...outletNames });
+    setOpen(true);
+  };
+  const save = () => {
+    const next = { ...outletNames };
+    for (const o of OUTLETS) {
+      const v = (draft[o] ?? "").trim();
+      if (!v) return toast.error(t("outletNameEmpty"));
+      next[o] = v;
+    }
+    setOutletNames(next);
+    setOpen(false);
+    toast.success(t("outletNamesSaved"));
+  };
+
+  return (
+    <>
+      <Button variant="ghost" size="sm" onClick={start} className="h-8 gap-1">
+        <Settings2 className="h-4 w-4" />
+        <span className="hidden sm:inline text-xs">{t("editOutletNames")}</span>
+      </Button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold">{t("editOutletNames")}</h3>
+            <div className="space-y-2 max-h-[60vh] overflow-auto">
+              {OUTLETS.map((o) => (
+                <div key={o} className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{o}</Label>
+                  <Input
+                    value={draft[o] ?? ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
+                    maxLength={60}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                {t("cancel")}
+              </Button>
+              <Button onClick={save}>
+                <Check className="h-4 w-4 mr-1" />
+                {t("save")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
