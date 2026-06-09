@@ -228,6 +228,9 @@ export function ChecklistPage({ mode }: Props) {
     Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
   );
   const lastSyncedRecCanonRef = useRef<string>("");
+  const outletNamesRef = useRef<Record<Outlet, string>>(outletNames);
+  const lastSyncedNamesCanonRef = useRef<string>("");
+
 
   useEffect(() => {
     outletRef.current = outlet;
