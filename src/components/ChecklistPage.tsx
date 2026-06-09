@@ -424,6 +424,24 @@ export function ChecklistPage({ mode }: Props) {
         (payload) => {
           const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
           if (!row) return;
+          if (row.key === STATE_KEY_OUTLET_NAMES) {
+            const raw = (row.value ?? {}) as Record<string, string>;
+            const next: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
+            for (const o of OUTLETS) {
+              const n = raw?.[o];
+              if (typeof n === "string" && n.trim()) next[o] = n;
+            }
+            const remoteCanon = canon(next);
+            if (remoteCanon === lastSyncedNamesCanonRef.current) return;
+            const localCanon = canon(outletNamesRef.current);
+            if (localCanon !== lastSyncedNamesCanonRef.current) {
+              lastSyncedNamesCanonRef.current = remoteCanon;
+              return;
+            }
+            setOutletNames(next);
+            lastSyncedNamesCanonRef.current = remoteCanon;
+            return;
+          }
           if (row.key === STATE_KEY_RECIPIENTS) {
             const next = Array.isArray(row.value) ? (row.value as string[]) : [];
             const remoteCanon = canon(next);
