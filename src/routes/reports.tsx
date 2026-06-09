@@ -28,7 +28,15 @@ export const Route = createFileRoute("/reports")({
 });
 
 
-const OUTLETS = ["Beach Bar", "Pakarang Bar", "Pool Bar", "Family Pool Bar"] as const;
+const OUTLETS = [
+  "Beach Bar",
+  "Pakarang Bar",
+  "Pool Bar",
+  "Family Pool Bar",
+  "Outlet 5",
+  "Outlet 6",
+  "Outlet 7",
+] as const;
 type Outlet = (typeof OUTLETS)[number];
 type OutletSelection = Outlet | "All Outlets";
 const OUTLET_OPTIONS: OutletSelection[] = ["All Outlets", ...OUTLETS];
