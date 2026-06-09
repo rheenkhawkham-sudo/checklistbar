@@ -844,7 +844,7 @@ export function ChecklistPage({ mode }: Props) {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>{t("outlet")}</Label>
-                      <Input value={outlet} disabled />
+                      <Input value={outletNames[outlet] || outlet} disabled />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signedBy-m">{t("signedBy")}</Label>
