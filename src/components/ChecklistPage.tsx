@@ -202,6 +202,7 @@ export function ChecklistPage({ mode }: Props) {
   };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
   const [recipients, setRecipients] = useState<string[]>([]);
+  const [outletNames, setOutletNames] = useState<Record<Outlet, string>>(DEFAULT_OUTLET_NAMES);
   const [submitting, setSubmitting] = useState(false);
   const send = useServerFn(sendChecklistEmail);
 
