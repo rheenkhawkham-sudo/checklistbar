@@ -690,7 +690,10 @@ export function ChecklistPage({ mode }: Props) {
         </header>
 
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
-          <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
+            <OutletNamesEditor outletNames={outletNames} setOutletNames={setOutletNames} />
+          </div>
           <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
               <SelectValue />
@@ -698,7 +701,7 @@ export function ChecklistPage({ mode }: Props) {
             <SelectContent>
               {OUTLETS.map((o) => (
                 <SelectItem key={o} value={o} className="text-base">
-                  {o}
+                  {outletNames[o] || o}
                 </SelectItem>
               ))}
             </SelectContent>
