@@ -745,7 +745,7 @@ export function ChecklistPage({ mode }: Props) {
         <section className="flex flex-col items-center justify-center mb-8 rounded-3xl border bg-card p-8 shadow-sm">
           <CircularProgress percent={combinedP.percent} />
           <p className="mt-4 text-sm text-muted-foreground tabular-nums">
-            {t("completedSummary", { outlet, done: combinedP.done, total: combinedP.total })}
+            {t("completedSummary", { outlet: outletNames[outlet] || outlet, done: combinedP.done, total: combinedP.total })}
           </p>
 
           <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4 w-full max-w-md">
