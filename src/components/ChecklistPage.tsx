@@ -18,7 +18,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
-import { sendChecklistEmail } from "@/server/email.functions";
+import { sendChecklistEmail } from "@/lib/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 const OUTLETS = [
