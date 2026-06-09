@@ -156,6 +156,7 @@ function ReportsPage() {
   const [period, setPeriod] = useState<Period>("daily");
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [outletNames, setOutletNames] = useState<Record<string, string>>({});
 
   const [dateMode, setDateMode] = useState<DateMode>("all");
   const [singleDay, setSingleDay] = useState<Date | undefined>(undefined);
@@ -164,7 +165,8 @@ function ReportsPage() {
   const [pickMonth, setPickMonth] = useState<number>(now.getMonth());
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : o);
+  const nameOf = (o: Outlet) => outletNames[o] || o;
+  const outletLabel = (o: OutletSelection) => (o === "All Outlets" ? t("allOutlets") : nameOf(o));
 
   const loadReports = async () => {
     setLoading(true);
