@@ -213,7 +213,11 @@ function ReportsPage() {
   }, [unlocked]);
 
   const filtered = useMemo(() => {
-    let list = outlet === "All Outlets" ? reports : reports.filter((r) => r.outlet === outlet);
+    let list = reports;
+    if (outlet !== "All Outlets") {
+      const dn = nameOf(outlet);
+      list = reports.filter((r) => r.outlet === outlet || r.outlet === dn);
+    }
     if (dateMode === "day" && singleDay) {
       const key = format(singleDay, "yyyy-MM-dd");
       list = list.filter((r) => r.report_date === key);
