@@ -117,6 +117,12 @@ const dict = {
     deleteSelectedConfirm: "Delete {n} report(s)?",
     deleteAllConfirm: "Delete ALL {n} report(s) shown?",
     enterToDeleteReports: "Enter password to delete reports",
+    editOutletNames: "Edit outlet names",
+    enterToEditOutlets: "Enter password to edit outlet names",
+    save: "Save",
+    cancel: "Cancel",
+    outletNameEmpty: "Outlet name cannot be empty",
+    outletNamesSaved: "Outlet names updated",
   },
   th: {
     barOperations: "ปฏิบัติงานบาร์",
