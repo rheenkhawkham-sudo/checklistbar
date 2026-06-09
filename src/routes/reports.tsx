@@ -245,6 +245,7 @@ function ReportsPage() {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(namesChannel);
     };
   }, [unlocked]);
 
