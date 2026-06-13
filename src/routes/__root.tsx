@@ -40,8 +40,8 @@ export const Route = createRootRoute({
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Checklist Bar" },
       { name: "twitter:description", content: "Daily Bar Check is a web application for managing daily and monthly bar checklists." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/8d8237a9-8a50-407d-8062-f02c08869c11" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/8d8237a9-8a50-407d-8062-f02c08869c11" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/OYkIeeKMASRrwgNpkFIEe528Pqq1/social-images/social-1781319554140-IMG_0829.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/OYkIeeKMASRrwgNpkFIEe528Pqq1/social-images/social-1781319554140-IMG_0829.webp" },
     ],
     links: [
       {
