@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "bar-checklist-mcp",
+      "version": "0.1.0",
+      "title": "Bar Checklist MCP"
+    },
+    "tools": [
+      {
+        "name": "list_reports",
+        "title": "List checklist reports",
+        "description": "List bar checklist reports with optional filters. Returns summary rows (id, date, outlet, signed_by, times, totals, percent).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "outlet": {
+              "description": "Exact outlet name to filter by.",
+              "type": "string"
+            },
+            "from": {
+              "description": "Inclusive start date (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "to": {
+              "description": "Inclusive end date (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "limit": {
+              "description": "Max rows (default 50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_report",
+        "title": "Get a checklist report",
+        "description": "Fetch one bar checklist report by id, including all open/close/weekly tasks and remarks.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The report id (uuid)."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_outlets",
+        "title": "List outlets",
+        "description": "Return the current outlet display names used by the bar checklist app.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
