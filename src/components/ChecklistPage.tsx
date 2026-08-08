@@ -21,7 +21,7 @@ import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/lib/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-const OUTLETS = [
+export const DEFAULT_OUTLETS: string[] = [
   "Beach Bar",
   "Pakarang Bar",
   "Pool Bar",
@@ -29,10 +29,10 @@ const OUTLETS = [
   "Outlet 5",
   "Outlet 6",
   "Outlet 7",
-] as const;
-type Outlet = typeof OUTLETS[number];
+];
+type Outlet = string;
 const DEFAULT_OUTLET_NAMES: Record<Outlet, string> = Object.fromEntries(
-  OUTLETS.map((o) => [o, o]),
+  DEFAULT_OUTLETS.map((o) => [o, o]),
 ) as Record<Outlet, string>;
 
 const DEFAULT_OPEN: Task[] = [
