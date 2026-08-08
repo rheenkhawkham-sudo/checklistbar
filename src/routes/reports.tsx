@@ -157,6 +157,28 @@ function ReportsPage() {
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [outletNames, setOutletNames] = useState<Record<string, string>>({});
+  const [outletIds, setOutletIds] = useState<string[]>([...DEFAULT_OUTLETS]);
+  const outletOptions = useMemo<OutletSelection[]>(() => ["All Outlets", ...outletIds], [outletIds]);
+
+  const deleteAllHistory = async () => {
+    const code = window.prompt(t("enterDeleteCode"));
+    if (code === null) return;
+    if (code.trim() !== DELETE_ALL_CODE) {
+      window.alert(t("wrongDeleteCode"));
+      return;
+    }
+    if (!window.confirm(t("deleteAllHistoryConfirm"))) return;
+    const { error } = await supabase
+      .from("checklist_reports")
+      .delete()
+      .not("id", "is", null);
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    setReports([]);
+    window.alert(t("historyDeleted"));
+  };
 
   const [dateMode, setDateMode] = useState<DateMode>("all");
   const [singleDay, setSingleDay] = useState<Date | undefined>(undefined);
