@@ -118,12 +118,12 @@ const stripTemplate = (tasks: Task[] | undefined): Task[] =>
   (tasks ?? []).map((x) => ({ id: x.id, text: x.text, done: false }));
 
 function readLocalOutlet(): Outlet {
-  if (typeof window === "undefined") return OUTLETS[0];
+  if (typeof window === "undefined") return DEFAULT_OUTLETS[0];
   try {
-    const v = localStorage.getItem(LOCAL_KEY_OUTLET) as Outlet | null;
-    return v && (OUTLETS as readonly string[]).includes(v) ? v : OUTLETS[0];
+    const v = localStorage.getItem(LOCAL_KEY_OUTLET);
+    return v && v.trim() ? v : DEFAULT_OUTLETS[0];
   } catch {
-    return OUTLETS[0];
+    return DEFAULT_OUTLETS[0];
   }
 }
 function readLocalWork(o: Outlet): LocalWork {
