@@ -226,8 +226,10 @@ export function ChecklistPage({ mode }: Props) {
   const templatesRef = useRef<Record<Outlet, OutletTemplate>>(templates);
   const recipientsRef = useRef<string[]>(recipients);
   const lastSyncedTplCanonRef = useRef<Record<Outlet, string>>(
-    Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
+    Object.fromEntries(DEFAULT_OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
   );
+  const outletIdsRef = useRef<string[]>(outletIds);
+  const lastSyncedIdsCanonRef = useRef<string>("");
   const lastSyncedRecCanonRef = useRef<string>("");
   const outletNamesRef = useRef<Record<Outlet, string>>(outletNames);
   const lastSyncedNamesCanonRef = useRef<string>("");
