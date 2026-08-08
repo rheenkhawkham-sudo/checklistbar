@@ -21,7 +21,7 @@ import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { sendChecklistEmail } from "@/lib/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-const OUTLETS = [
+export const DEFAULT_OUTLETS: string[] = [
   "Beach Bar",
   "Pakarang Bar",
   "Pool Bar",
@@ -29,10 +29,10 @@ const OUTLETS = [
   "Outlet 5",
   "Outlet 6",
   "Outlet 7",
-] as const;
-type Outlet = typeof OUTLETS[number];
+];
+type Outlet = string;
 const DEFAULT_OUTLET_NAMES: Record<Outlet, string> = Object.fromEntries(
-  OUTLETS.map((o) => [o, o]),
+  DEFAULT_OUTLETS.map((o) => [o, o]),
 ) as Record<Outlet, string>;
 
 const DEFAULT_OPEN: Task[] = [
@@ -82,6 +82,7 @@ const DEFAULT_DATA = (): OutletData => ({
 const STATE_KEY_TEMPLATE = (o: Outlet) => `outlet:${o}`; // shared (template only)
 const STATE_KEY_RECIPIENTS = "recipients"; // shared
 const STATE_KEY_OUTLET_NAMES = "outlet_names"; // shared display names
+const STATE_KEY_OUTLET_IDS = "outlet_ids"; // shared outlet list
 
 const LOCAL_KEY_OUTLET = "checklist:currentOutlet"; // per-device
 const LOCAL_KEY_WORK = (o: Outlet) => `checklist:work:${o}`; // per-device
@@ -105,6 +106,8 @@ const DEFAULT_TEMPLATE = (): OutletTemplate => ({
   close: JSON.parse(JSON.stringify(DEFAULT_CLOSE)),
   monthly: JSON.parse(JSON.stringify(DEFAULT_MONTHLY)),
 });
+// Fallback used when an outlet was just added and has no template yet.
+const EMPTY_TEMPLATE: OutletTemplate = DEFAULT_TEMPLATE();
 const DEFAULT_WORK = (): LocalWork => ({
   done: {},
   remark: {},
@@ -118,12 +121,12 @@ const stripTemplate = (tasks: Task[] | undefined): Task[] =>
   (tasks ?? []).map((x) => ({ id: x.id, text: x.text, done: false }));
 
 function readLocalOutlet(): Outlet {
-  if (typeof window === "undefined") return OUTLETS[0];
+  if (typeof window === "undefined") return DEFAULT_OUTLETS[0];
   try {
-    const v = localStorage.getItem(LOCAL_KEY_OUTLET) as Outlet | null;
-    return v && (OUTLETS as readonly string[]).includes(v) ? v : OUTLETS[0];
+    const v = localStorage.getItem(LOCAL_KEY_OUTLET);
+    return v && v.trim() ? v : DEFAULT_OUTLETS[0];
   } catch {
-    return OUTLETS[0];
+    return DEFAULT_OUTLETS[0];
   }
 }
 function readLocalWork(o: Outlet): LocalWork {
@@ -187,14 +190,15 @@ export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
   const { t } = useI18n();
 
-  const [outlet, setOutletState] = useState<Outlet>(OUTLETS[0]);
+  const [outlet, setOutletState] = useState<Outlet>(DEFAULT_OUTLETS[0]);
+  const [outletIds, setOutletIds] = useState<string[]>(() => [...DEFAULT_OUTLETS]);
   const [templates, setTemplates] = useState<Record<Outlet, OutletTemplate>>(
-    () => Object.fromEntries(OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
+    () => Object.fromEntries(DEFAULT_OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
   );
-  const template = templates[outlet];
+  const template = templates[outlet] ?? EMPTY_TEMPLATE;
   const setTemplate = (updater: OutletTemplate | ((prev: OutletTemplate) => OutletTemplate)) => {
     setTemplates((prev) => {
-      const cur = prev[outletRef.current];
+      const cur = prev[outletRef.current] ?? DEFAULT_TEMPLATE();
       const next = typeof updater === "function" ? (updater as (p: OutletTemplate) => OutletTemplate)(cur) : updater;
       if (next === cur) return prev;
       return { ...prev, [outletRef.current]: next };
@@ -225,8 +229,10 @@ export function ChecklistPage({ mode }: Props) {
   const templatesRef = useRef<Record<Outlet, OutletTemplate>>(templates);
   const recipientsRef = useRef<string[]>(recipients);
   const lastSyncedTplCanonRef = useRef<Record<Outlet, string>>(
-    Object.fromEntries(OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
+    Object.fromEntries(DEFAULT_OUTLETS.map((o) => [o, ""])) as Record<Outlet, string>,
   );
+  const outletIdsRef = useRef<string[]>(outletIds);
+  const lastSyncedIdsCanonRef = useRef<string>("");
   const lastSyncedRecCanonRef = useRef<string>("");
   const outletNamesRef = useRef<Record<Outlet, string>>(outletNames);
   const lastSyncedNamesCanonRef = useRef<string>("");
@@ -244,6 +250,9 @@ export function ChecklistPage({ mode }: Props) {
   useEffect(() => {
     outletNamesRef.current = outletNames;
   }, [outletNames]);
+  useEffect(() => {
+    outletIdsRef.current = outletIds;
+  }, [outletIds]);
 
 
   // Wrap setOutlet to persist locally (per-device) — never to app_state.
@@ -280,8 +289,17 @@ export function ChecklistPage({ mode }: Props) {
         return same(tpl.open, def.open) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
       };
 
+      const rawIds = map.get(STATE_KEY_OUTLET_IDS);
+      const ids: string[] =
+        Array.isArray(rawIds) && rawIds.length > 0
+          ? (rawIds as string[]).filter((x) => typeof x === "string")
+          : [...DEFAULT_OUTLETS];
+      setOutletIds(ids);
+      lastSyncedIdsCanonRef.current = canon(ids);
+      if (!ids.includes(initialOutlet)) setOutlet(ids[0]);
+
       const loaded: Record<Outlet, OutletTemplate> = Object.fromEntries(
-        OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()]),
+        ids.map((o) => [o, DEFAULT_TEMPLATE()]),
       ) as Record<Outlet, OutletTemplate>;
 
       const today = new Date().toISOString().slice(0, 10);
@@ -313,7 +331,7 @@ export function ChecklistPage({ mode }: Props) {
       };
 
       await Promise.all(
-        OUTLETS.map(async (o) => {
+        ids.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
           const tpl: OutletTemplate = {
             open: stripTemplate(raw?.open),
@@ -395,7 +413,7 @@ export function ChecklistPage({ mode }: Props) {
       if (!active) return;
 
       setTemplates(loaded);
-      for (const o of OUTLETS) {
+      for (const o of ids) {
         lastSyncedTplCanonRef.current[o] = canon(loaded[o]);
       }
       const recs = map.get(STATE_KEY_RECIPIENTS);
@@ -404,12 +422,10 @@ export function ChecklistPage({ mode }: Props) {
       lastSyncedRecCanonRef.current = canon(initialRecs);
 
       const rawNames = map.get(STATE_KEY_OUTLET_NAMES) as Record<string, string> | undefined;
-      const initialNames: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
-      if (rawNames && typeof rawNames === "object") {
-        for (const o of OUTLETS) {
-          const n = rawNames[o];
-          if (typeof n === "string" && n.trim()) initialNames[o] = n;
-        }
+      const initialNames: Record<Outlet, string> = {};
+      for (const o of ids) {
+        const n = rawNames?.[o];
+        initialNames[o] = typeof n === "string" && n.trim() ? n : (DEFAULT_OUTLET_NAMES[o] ?? o);
       }
       setOutletNames(initialNames);
       lastSyncedNamesCanonRef.current = canon(initialNames);
@@ -424,12 +440,25 @@ export function ChecklistPage({ mode }: Props) {
         (payload) => {
           const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
           if (!row) return;
+          if (row.key === STATE_KEY_OUTLET_IDS) {
+            const ids = Array.isArray(row.value) ? (row.value as string[]).filter((x) => typeof x === "string") : [];
+            if (ids.length === 0) return;
+            const remoteCanon = canon(ids);
+            if (remoteCanon === lastSyncedIdsCanonRef.current) return;
+            if (canon(outletIdsRef.current) !== lastSyncedIdsCanonRef.current) {
+              lastSyncedIdsCanonRef.current = remoteCanon;
+              return;
+            }
+            setOutletIds(ids);
+            lastSyncedIdsCanonRef.current = remoteCanon;
+            return;
+          }
           if (row.key === STATE_KEY_OUTLET_NAMES) {
             const raw = (row.value ?? {}) as Record<string, string>;
-            const next: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
-            for (const o of OUTLETS) {
+            const next: Record<Outlet, string> = {};
+            for (const o of outletIdsRef.current) {
               const n = raw?.[o];
-              if (typeof n === "string" && n.trim()) next[o] = n;
+              next[o] = typeof n === "string" && n.trim() ? n : (outletNamesRef.current[o] ?? o);
             }
             const remoteCanon = canon(next);
             if (remoteCanon === lastSyncedNamesCanonRef.current) return;
@@ -455,7 +484,7 @@ export function ChecklistPage({ mode }: Props) {
             lastSyncedRecCanonRef.current = remoteCanon;
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
-            if (!(OUTLETS as readonly string[]).includes(o)) return;
+            if (!outletIdsRef.current.includes(o)) return;
             const raw = (row.value ?? {}) as Partial<OutletTemplate>;
             const remoteTpl: OutletTemplate = {
               open: stripTemplate(raw.open),
@@ -514,7 +543,7 @@ export function ChecklistPage({ mode }: Props) {
       return;
     }
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    for (const o of OUTLETS) {
+    for (const o of Object.keys(templates)) {
       const snapshot: OutletTemplate = {
         open: stripTemplate(templates[o].open),
         close: stripTemplate(templates[o].close),
@@ -548,6 +577,22 @@ export function ChecklistPage({ mode }: Props) {
     }, 350);
     return () => clearTimeout(tm);
   }, [recipients]);
+
+  const idsInitRef = useRef(true);
+  useEffect(() => {
+    if (idsInitRef.current) {
+      idsInitRef.current = false;
+      return;
+    }
+    const snapshot = outletIds;
+    const snapshotCanon = canon(snapshot);
+    if (snapshotCanon === lastSyncedIdsCanonRef.current) return;
+    const tm = setTimeout(async () => {
+      await pushState(STATE_KEY_OUTLET_IDS, snapshot);
+      lastSyncedIdsCanonRef.current = snapshotCanon;
+    }, 350);
+    return () => clearTimeout(tm);
+  }, [outletIds]);
 
   const namesInitRef = useRef(true);
   useEffect(() => {
@@ -692,14 +737,19 @@ export function ChecklistPage({ mode }: Props) {
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
-            <OutletNamesEditor outletNames={outletNames} setOutletNames={setOutletNames} />
+            <OutletNamesEditor
+              outletIds={outletIds}
+              setOutletIds={setOutletIds}
+              outletNames={outletNames}
+              setOutletNames={setOutletNames}
+            />
           </div>
-          <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
+          <Select value={outlet} onValueChange={(v) => setOutlet(v)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {OUTLETS.map((o) => (
+              {outletIds.map((o) => (
                 <SelectItem key={o} value={o} className="text-base">
                   {outletNames[o] || o}
                 </SelectItem>
@@ -1076,30 +1126,55 @@ function RecipientsSection({
 }
 
 function OutletNamesEditor({
+  outletIds,
+  setOutletIds,
   outletNames,
   setOutletNames,
 }: {
+  outletIds: string[];
+  setOutletIds: (ids: string[]) => void;
   outletNames: Record<Outlet, string>;
   setOutletNames: (n: Record<Outlet, string>) => void;
 }) {
   const { t } = useI18n();
   const { requirePassword } = usePasswords();
   const [open, setOpen] = useState(false);
+  const [ids, setIds] = useState<string[]>(outletIds);
   const [draft, setDraft] = useState<Record<Outlet, string>>(outletNames);
+  const [newName, setNewName] = useState("");
 
   const start = () => {
     if (!requirePassword("edit", "enterToEditOutlets")) return;
+    setIds([...outletIds]);
     setDraft({ ...outletNames });
+    setNewName("");
     setOpen(true);
   };
+
+  const addOutlet = () => {
+    const label = newName.trim();
+    if (!label) return toast.error(t("outletNameEmpty"));
+    const id = `outlet-${Date.now().toString(36)}`;
+    setIds((prev) => [...prev, id]);
+    setDraft((d) => ({ ...d, [id]: label }));
+    setNewName("");
+  };
+
+  const removeOutlet = (id: string) => {
+    if (ids.length <= 1) return toast.error(t("outletMinOne"));
+    if (!window.confirm(t("deleteOutletConfirm", { name: draft[id] || id }))) return;
+    setIds((prev) => prev.filter((x) => x !== id));
+  };
+
   const save = () => {
-    const next = { ...outletNames };
-    for (const o of OUTLETS) {
+    const next: Record<Outlet, string> = {};
+    for (const o of ids) {
       const v = (draft[o] ?? "").trim();
       if (!v) return toast.error(t("outletNameEmpty"));
       next[o] = v;
     }
     setOutletNames(next);
+    setOutletIds(ids);
     setOpen(false);
     toast.success(t("outletNamesSaved"));
   };
@@ -1119,18 +1194,41 @@ function OutletNamesEditor({
             className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold">{t("editOutletNames")}</h3>
-            <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {OUTLETS.map((o) => (
-                <div key={o} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{o}</Label>
-                  <Input
-                    value={draft[o] ?? ""}
-                    onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
-                    maxLength={60}
-                  />
+            <h3 className="text-base font-semibold">{t("manageOutlets")}</h3>
+            <div className="space-y-2 max-h-[55vh] overflow-auto">
+              {ids.map((o) => (
+                <div key={o} className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-muted-foreground">{o}</Label>
+                    <Input
+                      value={draft[o] ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
+                      maxLength={60}
+                    />
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive shrink-0"
+                    onClick={() => removeOutlet(o)}
+                    aria-label={t("removeAria")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Input
+                placeholder={t("newOutletName")}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addOutlet()}
+                maxLength={60}
+              />
+              <Button size="icon" onClick={addOutlet} aria-label={t("addOutlet")}>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setOpen(false)}>

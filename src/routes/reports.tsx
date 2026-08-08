@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import jsPDF from "jspdf";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/reports")({
 });
 
 
-const OUTLETS = [
+const DEFAULT_OUTLETS: string[] = [
   "Beach Bar",
   "Pakarang Bar",
   "Pool Bar",
@@ -36,10 +36,10 @@ const OUTLETS = [
   "Outlet 5",
   "Outlet 6",
   "Outlet 7",
-] as const;
-type Outlet = (typeof OUTLETS)[number];
-type OutletSelection = Outlet | "All Outlets";
-const OUTLET_OPTIONS: OutletSelection[] = ["All Outlets", ...OUTLETS];
+];
+type Outlet = string;
+type OutletSelection = string;
+const DELETE_ALL_CODE = "090138";
 
 type Task = { id: string; text: string; done: boolean; remark?: string };
 
@@ -157,6 +157,28 @@ function ReportsPage() {
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [outletNames, setOutletNames] = useState<Record<string, string>>({});
+  const [outletIds, setOutletIds] = useState<string[]>([...DEFAULT_OUTLETS]);
+  const outletOptions = useMemo<OutletSelection[]>(() => ["All Outlets", ...outletIds], [outletIds]);
+
+  const deleteAllHistory = async () => {
+    const code = window.prompt(t("enterDeleteCode"));
+    if (code === null) return;
+    if (code.trim() !== DELETE_ALL_CODE) {
+      window.alert(t("wrongDeleteCode"));
+      return;
+    }
+    if (!window.confirm(t("deleteAllHistoryConfirm"))) return;
+    const { error } = await supabase
+      .from("checklist_reports")
+      .delete()
+      .not("id", "is", null);
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    setReports([]);
+    window.alert(t("historyDeleted"));
+  };
 
   const [dateMode, setDateMode] = useState<DateMode>("all");
   const [singleDay, setSingleDay] = useState<Date | undefined>(undefined);
@@ -184,14 +206,18 @@ function ReportsPage() {
     if (!unlocked) return;
     loadReports();
 
-    // Load outlet display names (synced across devices)
+    // Load outlet list + display names (synced across devices)
     (async () => {
-      const { data } = await supabase
+      const { data: rows } = await supabase
         .from("app_state")
-        .select("value")
-        .eq("key", "outlet_names")
-        .maybeSingle();
-      const v = (data?.value ?? {}) as Record<string, string>;
+        .select("key,value")
+        .in("key", ["outlet_names", "outlet_ids"]);
+      const map = new Map((rows ?? []).map((r) => [r.key, r.value]));
+      const ids = map.get("outlet_ids");
+      if (Array.isArray(ids) && ids.length > 0) {
+        setOutletIds((ids as string[]).filter((x) => typeof x === "string"));
+      }
+      const v = (map.get("outlet_names") ?? {}) as Record<string, string>;
       if (v && typeof v === "object") {
         const next: Record<string, string> = {};
         for (const k of Object.keys(v)) {
@@ -383,7 +409,7 @@ function ReportsPage() {
         </nav>
 
         <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {OUTLET_OPTIONS.map((o) => (
+          {outletOptions.map((o) => (
             <button
               key={o}
               onClick={() => setOutlet(o)}
@@ -406,15 +432,26 @@ function ReportsPage() {
               <TabsTrigger value="yearly">{t("yearly")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => downloadPDF(outlet, filtered)}
-            disabled={filtered.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {t("download", { outlet: outletLabel(outlet) })}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadPDF(outlet, filtered)}
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {t("download", { outlet: outletLabel(outlet) })}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteAllHistory}
+              disabled={reports.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t("deleteAllHistory")}
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-2xl border bg-card p-3 mb-6 space-y-2">
