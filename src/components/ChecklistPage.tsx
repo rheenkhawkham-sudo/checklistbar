@@ -695,14 +695,19 @@ export function ChecklistPage({ mode }: Props) {
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
-            <OutletNamesEditor outletNames={outletNames} setOutletNames={setOutletNames} />
+            <OutletNamesEditor
+              outletIds={outletIds}
+              setOutletIds={setOutletIds}
+              outletNames={outletNames}
+              setOutletNames={setOutletNames}
+            />
           </div>
-          <Select value={outlet} onValueChange={(v) => setOutlet(v as Outlet)}>
+          <Select value={outlet} onValueChange={(v) => setOutlet(v)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {OUTLETS.map((o) => (
+              {outletIds.map((o) => (
                 <SelectItem key={o} value={o} className="text-base">
                   {outletNames[o] || o}
                 </SelectItem>
