@@ -242,7 +242,17 @@ const dict = {
     save: "บันทึก",
     cancel: "ยกเลิก",
     outletNameEmpty: "ชื่อเอ้าเลทห้ามว่าง",
-    outletNamesSaved: "อัปเดตชื่อเอ้าเลทเรียบร้อย",
+    outletNamesSaved: "อัปเดตเอ้าเลทเรียบร้อย",
+    manageOutlets: "จัดการเอ้าเลท",
+    newOutletName: "ชื่อเอ้าเลทใหม่",
+    addOutlet: "เพิ่มเอ้าเลท",
+    outletMinOne: "ต้องมีอย่างน้อย 1 เอ้าเลท",
+    deleteOutletConfirm: "ลบเอ้าเลท \"{name}\" ใช่หรือไม่?",
+    deleteAllHistory: "ลบประวัติทั้งหมด",
+    deleteAllHistoryConfirm: "ลบประวัติรีพอร์ททั้งหมดถาวรใช่หรือไม่?",
+    enterDeleteCode: "ใส่รหัสสำหรับลบ",
+    wrongDeleteCode: "รหัสลบไม่ถูกต้อง",
+    historyDeleted: "ลบประวัติรีพอร์ททั้งหมดแล้ว",
   },
 } as const;
 
