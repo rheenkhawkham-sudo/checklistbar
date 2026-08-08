@@ -517,7 +517,7 @@ export function ChecklistPage({ mode }: Props) {
       return;
     }
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    for (const o of OUTLETS) {
+    for (const o of Object.keys(templates)) {
       const snapshot: OutletTemplate = {
         open: stripTemplate(templates[o].open),
         close: stripTemplate(templates[o].close),
