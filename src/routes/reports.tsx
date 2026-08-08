@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import jsPDF from "jspdf";
