@@ -427,12 +427,25 @@ export function ChecklistPage({ mode }: Props) {
         (payload) => {
           const row = (payload.new ?? payload.old) as { key: string; value: unknown } | null;
           if (!row) return;
+          if (row.key === STATE_KEY_OUTLET_IDS) {
+            const ids = Array.isArray(row.value) ? (row.value as string[]).filter((x) => typeof x === "string") : [];
+            if (ids.length === 0) return;
+            const remoteCanon = canon(ids);
+            if (remoteCanon === lastSyncedIdsCanonRef.current) return;
+            if (canon(outletIdsRef.current) !== lastSyncedIdsCanonRef.current) {
+              lastSyncedIdsCanonRef.current = remoteCanon;
+              return;
+            }
+            setOutletIds(ids);
+            lastSyncedIdsCanonRef.current = remoteCanon;
+            return;
+          }
           if (row.key === STATE_KEY_OUTLET_NAMES) {
             const raw = (row.value ?? {}) as Record<string, string>;
-            const next: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
-            for (const o of OUTLETS) {
+            const next: Record<Outlet, string> = {};
+            for (const o of outletIdsRef.current) {
               const n = raw?.[o];
-              if (typeof n === "string" && n.trim()) next[o] = n;
+              next[o] = typeof n === "string" && n.trim() ? n : (outletNamesRef.current[o] ?? o);
             }
             const remoteCanon = canon(next);
             if (remoteCanon === lastSyncedNamesCanonRef.current) return;
