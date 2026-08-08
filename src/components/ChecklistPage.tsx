@@ -193,10 +193,10 @@ export function ChecklistPage({ mode }: Props) {
   const [templates, setTemplates] = useState<Record<Outlet, OutletTemplate>>(
     () => Object.fromEntries(DEFAULT_OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
   );
-  const template = templates[outlet];
+  const template = templates[outlet] ?? EMPTY_TEMPLATE;
   const setTemplate = (updater: OutletTemplate | ((prev: OutletTemplate) => OutletTemplate)) => {
     setTemplates((prev) => {
-      const cur = prev[outletRef.current];
+      const cur = prev[outletRef.current] ?? DEFAULT_TEMPLATE();
       const next = typeof updater === "function" ? (updater as (p: OutletTemplate) => OutletTemplate)(cur) : updater;
       if (next === cur) return prev;
       return { ...prev, [outletRef.current]: next };
