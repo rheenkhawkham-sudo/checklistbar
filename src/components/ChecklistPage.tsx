@@ -458,7 +458,7 @@ export function ChecklistPage({ mode }: Props) {
             lastSyncedRecCanonRef.current = remoteCanon;
           } else if (row.key.startsWith("outlet:")) {
             const o = row.key.slice("outlet:".length) as Outlet;
-            if (!(OUTLETS as readonly string[]).includes(o)) return;
+            if (!outletIdsRef.current.includes(o)) return;
             const raw = (row.value ?? {}) as Partial<OutletTemplate>;
             const remoteTpl: OutletTemplate = {
               open: stripTemplate(raw.open),
