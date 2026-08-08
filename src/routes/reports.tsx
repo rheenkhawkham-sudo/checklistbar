@@ -28,7 +28,7 @@ export const Route = createFileRoute("/reports")({
 });
 
 
-const OUTLETS = [
+const DEFAULT_OUTLETS: string[] = [
   "Beach Bar",
   "Pakarang Bar",
   "Pool Bar",
@@ -36,10 +36,10 @@ const OUTLETS = [
   "Outlet 5",
   "Outlet 6",
   "Outlet 7",
-] as const;
-type Outlet = (typeof OUTLETS)[number];
-type OutletSelection = Outlet | "All Outlets";
-const OUTLET_OPTIONS: OutletSelection[] = ["All Outlets", ...OUTLETS];
+];
+type Outlet = string;
+type OutletSelection = string;
+const DELETE_ALL_CODE = "090138";
 
 type Task = { id: string; text: string; done: boolean; remark?: string };
 
