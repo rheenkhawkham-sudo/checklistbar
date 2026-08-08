@@ -1079,30 +1079,55 @@ function RecipientsSection({
 }
 
 function OutletNamesEditor({
+  outletIds,
+  setOutletIds,
   outletNames,
   setOutletNames,
 }: {
+  outletIds: string[];
+  setOutletIds: (ids: string[]) => void;
   outletNames: Record<Outlet, string>;
   setOutletNames: (n: Record<Outlet, string>) => void;
 }) {
   const { t } = useI18n();
   const { requirePassword } = usePasswords();
   const [open, setOpen] = useState(false);
+  const [ids, setIds] = useState<string[]>(outletIds);
   const [draft, setDraft] = useState<Record<Outlet, string>>(outletNames);
+  const [newName, setNewName] = useState("");
 
   const start = () => {
     if (!requirePassword("edit", "enterToEditOutlets")) return;
+    setIds([...outletIds]);
     setDraft({ ...outletNames });
+    setNewName("");
     setOpen(true);
   };
+
+  const addOutlet = () => {
+    const label = newName.trim();
+    if (!label) return toast.error(t("outletNameEmpty"));
+    const id = `outlet-${Date.now().toString(36)}`;
+    setIds((prev) => [...prev, id]);
+    setDraft((d) => ({ ...d, [id]: label }));
+    setNewName("");
+  };
+
+  const removeOutlet = (id: string) => {
+    if (ids.length <= 1) return toast.error(t("outletMinOne"));
+    if (!window.confirm(t("deleteOutletConfirm", { name: draft[id] || id }))) return;
+    setIds((prev) => prev.filter((x) => x !== id));
+  };
+
   const save = () => {
-    const next = { ...outletNames };
-    for (const o of OUTLETS) {
+    const next: Record<Outlet, string> = {};
+    for (const o of ids) {
       const v = (draft[o] ?? "").trim();
       if (!v) return toast.error(t("outletNameEmpty"));
       next[o] = v;
     }
     setOutletNames(next);
+    setOutletIds(ids);
     setOpen(false);
     toast.success(t("outletNamesSaved"));
   };
@@ -1122,18 +1147,41 @@ function OutletNamesEditor({
             className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold">{t("editOutletNames")}</h3>
-            <div className="space-y-2 max-h-[60vh] overflow-auto">
-              {OUTLETS.map((o) => (
-                <div key={o} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{o}</Label>
-                  <Input
-                    value={draft[o] ?? ""}
-                    onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
-                    maxLength={60}
-                  />
+            <h3 className="text-base font-semibold">{t("manageOutlets")}</h3>
+            <div className="space-y-2 max-h-[55vh] overflow-auto">
+              {ids.map((o) => (
+                <div key={o} className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-muted-foreground">{o}</Label>
+                    <Input
+                      value={draft[o] ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, [o]: e.target.value }))}
+                      maxLength={60}
+                    />
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive shrink-0"
+                    onClick={() => removeOutlet(o)}
+                    aria-label={t("removeAria")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Input
+                placeholder={t("newOutletName")}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addOutlet()}
+                maxLength={60}
+              />
+              <Button size="icon" onClick={addOutlet} aria-label={t("addOutlet")}>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setOpen(false)}>
