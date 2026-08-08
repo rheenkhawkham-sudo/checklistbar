@@ -206,14 +206,18 @@ function ReportsPage() {
     if (!unlocked) return;
     loadReports();
 
-    // Load outlet display names (synced across devices)
+    // Load outlet list + display names (synced across devices)
     (async () => {
-      const { data } = await supabase
+      const { data: rows } = await supabase
         .from("app_state")
-        .select("value")
-        .eq("key", "outlet_names")
-        .maybeSingle();
-      const v = (data?.value ?? {}) as Record<string, string>;
+        .select("key,value")
+        .in("key", ["outlet_names", "outlet_ids"]);
+      const map = new Map((rows ?? []).map((r) => [r.key, r.value]));
+      const ids = map.get("outlet_ids");
+      if (Array.isArray(ids) && ids.length > 0) {
+        setOutletIds((ids as string[]).filter((x) => typeof x === "string"));
+      }
+      const v = (map.get("outlet_names") ?? {}) as Record<string, string>;
       if (v && typeof v === "object") {
         const next: Record<string, string> = {};
         for (const k of Object.keys(v)) {
