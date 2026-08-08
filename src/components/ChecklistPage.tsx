@@ -187,9 +187,10 @@ export function ChecklistPage({ mode }: Props) {
   const isDaily = mode === "daily";
   const { t } = useI18n();
 
-  const [outlet, setOutletState] = useState<Outlet>(OUTLETS[0]);
+  const [outlet, setOutletState] = useState<Outlet>(DEFAULT_OUTLETS[0]);
+  const [outletIds, setOutletIds] = useState<string[]>(() => [...DEFAULT_OUTLETS]);
   const [templates, setTemplates] = useState<Record<Outlet, OutletTemplate>>(
-    () => Object.fromEntries(OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
+    () => Object.fromEntries(DEFAULT_OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()])) as Record<Outlet, OutletTemplate>,
   );
   const template = templates[outlet];
   const setTemplate = (updater: OutletTemplate | ((prev: OutletTemplate) => OutletTemplate)) => {
