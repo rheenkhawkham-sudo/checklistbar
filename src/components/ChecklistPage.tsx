@@ -82,6 +82,7 @@ const DEFAULT_DATA = (): OutletData => ({
 const STATE_KEY_TEMPLATE = (o: Outlet) => `outlet:${o}`; // shared (template only)
 const STATE_KEY_RECIPIENTS = "recipients"; // shared
 const STATE_KEY_OUTLET_NAMES = "outlet_names"; // shared display names
+const STATE_KEY_OUTLET_IDS = "outlet_ids"; // shared outlet list
 
 const LOCAL_KEY_OUTLET = "checklist:currentOutlet"; // per-device
 const LOCAL_KEY_WORK = (o: Outlet) => `checklist:work:${o}`; // per-device
