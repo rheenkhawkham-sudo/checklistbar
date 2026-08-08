@@ -576,6 +576,22 @@ export function ChecklistPage({ mode }: Props) {
     return () => clearTimeout(tm);
   }, [recipients]);
 
+  const idsInitRef = useRef(true);
+  useEffect(() => {
+    if (idsInitRef.current) {
+      idsInitRef.current = false;
+      return;
+    }
+    const snapshot = outletIds;
+    const snapshotCanon = canon(snapshot);
+    if (snapshotCanon === lastSyncedIdsCanonRef.current) return;
+    const tm = setTimeout(async () => {
+      await pushState(STATE_KEY_OUTLET_IDS, snapshot);
+      lastSyncedIdsCanonRef.current = snapshotCanon;
+    }, 350);
+    return () => clearTimeout(tm);
+  }, [outletIds]);
+
   const namesInitRef = useRef(true);
   useEffect(() => {
     if (namesInitRef.current) {
