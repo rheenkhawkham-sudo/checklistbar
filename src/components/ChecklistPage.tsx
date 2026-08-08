@@ -283,8 +283,17 @@ export function ChecklistPage({ mode }: Props) {
         return same(tpl.open, def.open) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
       };
 
+      const rawIds = map.get(STATE_KEY_OUTLET_IDS);
+      const ids: string[] =
+        Array.isArray(rawIds) && rawIds.length > 0
+          ? (rawIds as string[]).filter((x) => typeof x === "string")
+          : [...DEFAULT_OUTLETS];
+      setOutletIds(ids);
+      lastSyncedIdsCanonRef.current = canon(ids);
+      if (!ids.includes(initialOutlet)) setOutlet(ids[0]);
+
       const loaded: Record<Outlet, OutletTemplate> = Object.fromEntries(
-        OUTLETS.map((o) => [o, DEFAULT_TEMPLATE()]),
+        ids.map((o) => [o, DEFAULT_TEMPLATE()]),
       ) as Record<Outlet, OutletTemplate>;
 
       const today = new Date().toISOString().slice(0, 10);
