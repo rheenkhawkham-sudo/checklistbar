@@ -106,6 +106,8 @@ const DEFAULT_TEMPLATE = (): OutletTemplate => ({
   close: JSON.parse(JSON.stringify(DEFAULT_CLOSE)),
   monthly: JSON.parse(JSON.stringify(DEFAULT_MONTHLY)),
 });
+// Fallback used when an outlet was just added and has no template yet.
+const EMPTY_TEMPLATE: OutletTemplate = DEFAULT_TEMPLATE();
 const DEFAULT_WORK = (): LocalWork => ({
   done: {},
   remark: {},
