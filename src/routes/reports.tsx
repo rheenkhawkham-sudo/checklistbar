@@ -405,7 +405,7 @@ function ReportsPage() {
         </nav>
 
         <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {OUTLET_OPTIONS.map((o) => (
+          {outletOptions.map((o) => (
             <button
               key={o}
               onClick={() => setOutlet(o)}
