@@ -398,7 +398,7 @@ export function ChecklistPage({ mode }: Props) {
       if (!active) return;
 
       setTemplates(loaded);
-      for (const o of OUTLETS) {
+      for (const o of ids) {
         lastSyncedTplCanonRef.current[o] = canon(loaded[o]);
       }
       const recs = map.get(STATE_KEY_RECIPIENTS);
@@ -407,12 +407,10 @@ export function ChecklistPage({ mode }: Props) {
       lastSyncedRecCanonRef.current = canon(initialRecs);
 
       const rawNames = map.get(STATE_KEY_OUTLET_NAMES) as Record<string, string> | undefined;
-      const initialNames: Record<Outlet, string> = { ...DEFAULT_OUTLET_NAMES };
-      if (rawNames && typeof rawNames === "object") {
-        for (const o of OUTLETS) {
-          const n = rawNames[o];
-          if (typeof n === "string" && n.trim()) initialNames[o] = n;
-        }
+      const initialNames: Record<Outlet, string> = {};
+      for (const o of ids) {
+        const n = rawNames?.[o];
+        initialNames[o] = typeof n === "string" && n.trim() ? n : (DEFAULT_OUTLET_NAMES[o] ?? o);
       }
       setOutletNames(initialNames);
       lastSyncedNamesCanonRef.current = canon(initialNames);
