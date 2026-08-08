@@ -428,15 +428,26 @@ function ReportsPage() {
               <TabsTrigger value="yearly">{t("yearly")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => downloadPDF(outlet, filtered)}
-            disabled={filtered.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {t("download", { outlet: outletLabel(outlet) })}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadPDF(outlet, filtered)}
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {t("download", { outlet: outletLabel(outlet) })}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteAllHistory}
+              disabled={reports.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t("deleteAllHistory")}
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-2xl border bg-card p-3 mb-6 space-y-2">
