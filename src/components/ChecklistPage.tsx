@@ -316,7 +316,7 @@ export function ChecklistPage({ mode }: Props) {
       };
 
       await Promise.all(
-        OUTLETS.map(async (o) => {
+        ids.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
           const tpl: OutletTemplate = {
             open: stripTemplate(raw?.open),
