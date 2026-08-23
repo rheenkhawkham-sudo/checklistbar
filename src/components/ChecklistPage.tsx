@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Send, Wine, Mail, Plus, Trash2, Pencil, Check, X, Settings2, KeyRound } from "lucide-react";
+import { Send, Mail, Plus, Trash2, Pencil, Check, X, Settings2, KeyRound } from "lucide-react";
 import { useI18n, LangToggle } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
+import { RiuLogo } from "@/components/RiuLogo";
 import { sendChecklistEmail } from "@/lib/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -720,18 +721,18 @@ export function ChecklistPage({ mode }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
+    <div className="min-h-screen bg-background">
       <Toaster richColors position="top-center" />
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         <div className="flex justify-end mb-2">
           <LangToggle />
         </div>
         <header className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
-            <Wine className="h-3.5 w-3.5" />
+          <RiuLogo />
+          <div className="mt-5 text-xs font-semibold uppercase tracking-widest text-primary">
             {t("barOperations")}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{t("barChecklist")}</h1>
+          <h1 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">{t("barChecklist")}</h1>
         </header>
 
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">

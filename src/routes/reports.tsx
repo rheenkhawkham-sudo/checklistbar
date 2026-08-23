@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, FileText, Wine, Download, Lock, KeyRound, CalendarIcon, X, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Download, Lock, KeyRound, CalendarIcon, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import jsPDF from "jspdf";
@@ -22,8 +22,19 @@ import { cn } from "@/lib/utils";
 import { getPassword } from "@/lib/passwords";
 import { useI18n, LangToggle } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
+import { RiuLogo } from "@/components/RiuLogo";
 
 export const Route = createFileRoute("/reports")({
+  head: () => ({
+    meta: [
+      { title: "Report History | RIU Bar Checklist" },
+      { name: "description", content: "Browse and export RIU bar checklist report history by outlet and date." },
+      { property: "og:title", content: "Report History | RIU Bar Checklist" },
+      { property: "og:description", content: "Browse and export RIU bar checklist report history by outlet and date." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: ReportsPage,
 });
 
@@ -323,12 +334,13 @@ function ReportsPage() {
 
   if (!unlocked) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
           <div className="flex justify-end mb-2">
             <LangToggle />
           </div>
-          <div className="flex flex-col items-center text-center mb-4">
+          <RiuLogo compact />
+          <div className="flex flex-col items-center text-center mt-5 mb-4">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
               <Lock className="h-5 w-5 text-primary" />
             </div>
@@ -369,17 +381,17 @@ function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
+    <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         <div className="flex justify-end mb-2">
           <LangToggle />
         </div>
         <header className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground mb-4">
-            <Wine className="h-3.5 w-3.5" />
+          <RiuLogo />
+          <div className="mt-5 text-xs font-semibold uppercase tracking-widest text-primary">
             {t("barOperations")}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{t("reportHistory")}</h1>
+          <h1 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">{t("reportHistory")}</h1>
           <p className="text-sm text-muted-foreground mt-2">{t("browseAll")}</p>
         </header>
 
