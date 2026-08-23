@@ -30,7 +30,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Checklist Bar" },
+      { title: "RIU Bar Checklist" },
       { name: "description", content: "Daily Bar Check is a web application for managing daily and monthly bar checklists." },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Checklist Bar" },
@@ -48,6 +48,7 @@ export const Route = createRootRoute({
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -57,7 +58,7 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>

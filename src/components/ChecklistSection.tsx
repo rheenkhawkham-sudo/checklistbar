@@ -36,8 +36,8 @@ interface Props {
 
 const VARIANT_CLASSES: Record<NonNullable<Props["variant"]>, string> = {
   default: "border bg-card",
-  open: "border-emerald-500/50 bg-emerald-500/5",
-  close: "border-amber-500/50 bg-amber-500/5",
+  open: "border-primary/60 bg-primary/5",
+  close: "border-foreground/25 bg-muted/40",
 };
 
 export function ChecklistSection({

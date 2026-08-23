@@ -13,7 +13,7 @@ export function CircularProgress({ percent, size = 160 }: Props) {
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="hsl(var(--muted) / 1)" strokeWidth={stroke} fill="none" className="opacity-30" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--muted)" strokeWidth={stroke} fill="none" className="opacity-40" />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -28,8 +28,8 @@ export function CircularProgress({ percent, size = 160 }: Props) {
         />
         <defs>
           <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="oklch(0.72 0.19 145)" />
-            <stop offset="100%" stopColor="oklch(0.55 0.22 155)" />
+            <stop offset="0%" stopColor="var(--progress-start)" />
+            <stop offset="100%" stopColor="var(--progress-end)" />
           </linearGradient>
         </defs>
       </svg>
