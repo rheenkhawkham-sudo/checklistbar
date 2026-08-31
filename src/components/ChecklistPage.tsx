@@ -759,7 +759,7 @@ export function ChecklistPage({ mode }: Props) {
   return (
     <div className="min-h-screen bg-background">
       <Toaster richColors position="top-center" />
-      <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 pb-32">
         <div className="flex justify-end mb-2">
           <LangToggle />
         </div>
@@ -769,6 +769,7 @@ export function ChecklistPage({ mode }: Props) {
             {t("barOperations")}
           </div>
           <h1 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">{t("barChecklist")}</h1>
+          <p className="mt-1 text-xs text-muted-foreground tabular-nums">{todayLabel}</p>
         </header>
 
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
