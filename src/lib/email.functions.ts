@@ -88,8 +88,8 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
           <tr><td style="padding:4px 0"><b>Type:</b></td><td>${escapeHtml(modeLabel)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
         </table>
-        ${includeDaily ? renderList("Open Bar", data.open) : ""}
-        ${includeDaily ? renderList("Close Bar", data.close) : ""}
+        ${includeOpen ? renderList("Open Bar", data.open) : ""}
+        ${includeClose ? renderList("Close Bar", data.close) : ""}
         ${includeDaily && data.daily.length > 0 ? renderList("Other Daily Tasks", data.daily) : ""}
         ${includeMonthly ? renderList("Weekly Cleaning", data.monthly) : ""}
       </div>
