@@ -869,6 +869,37 @@ export function ChecklistPage({ mode }: Props) {
           </div>
         </section>
 
+        {isDaily && (
+          <div className="sticky top-3 z-20 mb-6 flex justify-center">
+            <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-card/80 p-1.5 shadow-xl backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setDailySection("open")}
+                aria-pressed={dailySection === "open"}
+                className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  dailySection === "open"
+                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t("openBar")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDailySection("close")}
+                aria-pressed={dailySection === "close"}
+                className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  dailySection === "close"
+                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t("closeBar")}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-6 mb-8">
           {(() => {
             const buildMeta = (
