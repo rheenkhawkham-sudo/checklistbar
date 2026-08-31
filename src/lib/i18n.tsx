@@ -257,6 +257,10 @@ const dict = {
     enterDeleteCode: "ใส่รหัสสำหรับลบ",
     wrongDeleteCode: "รหัสลบไม่ถูกต้อง",
     historyDeleted: "ลบประวัติรีพอร์ททั้งหมดแล้ว",
+    viewSection: "แสดง",
+    sectionAll: "ทั้งหมด",
+    overallView: "ภาพรวม",
+    today: "วันนี้",
   },
 } as const;
 
