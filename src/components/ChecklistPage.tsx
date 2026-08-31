@@ -206,6 +206,23 @@ export function ChecklistPage({ mode }: Props) {
     });
   };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
+  const [dailySection, setDailySectionState] = useState<"open" | "close">("open");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("checklist:dailySection");
+      if (v === "open" || v === "close") setDailySectionState(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setDailySection = (s: "open" | "close") => {
+    setDailySectionState(s);
+    try {
+      localStorage.setItem("checklist:dailySection", s);
+    } catch {
+      /* ignore */
+    }
+  };
   const [recipients, setRecipients] = useState<string[]>([]);
   const [outletNames, setOutletNames] = useState<Record<Outlet, string>>(DEFAULT_OUTLET_NAMES);
   const [submitting, setSubmitting] = useState(false);
