@@ -133,6 +133,10 @@ const dict = {
     enterDeleteCode: "Enter delete code",
     wrongDeleteCode: "Wrong delete code",
     historyDeleted: "All report history deleted",
+    viewSection: "Show",
+    sectionAll: "All",
+    overallView: "Overall view",
+    today: "Today",
   },
   th: {
     barOperations: "ปฏิบัติงานบาร์",
