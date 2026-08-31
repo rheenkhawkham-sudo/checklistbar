@@ -14,7 +14,7 @@ const PayloadSchema = z.object({
   reportDate: z.string().trim().min(1).max(40),
   openTime: z.string().trim().max(20).optional().default(""),
   closeTime: z.string().trim().max(20).optional().default(""),
-  mode: z.enum(["daily", "monthly", "all"]).default("all"),
+  mode: z.enum(["daily", "monthly", "all", "open", "close"]).default("all"),
   daily: z.array(TaskSchema).max(200).default([]),
   open: z.array(TaskSchema).max(200).default([]),
   close: z.array(TaskSchema).max(200).default([]),
@@ -49,11 +49,14 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
     if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured");
 
+    const includeOpen = data.mode === "open" || data.mode === "daily" || data.mode === "all";
+    const includeClose = data.mode === "close" || data.mode === "daily" || data.mode === "all";
     const includeDaily = data.mode === "daily" || data.mode === "all";
     const includeMonthly = data.mode === "monthly" || data.mode === "all";
-    const dailyAll = [...data.open, ...data.close, ...data.daily];
     const scoped = [
-      ...(includeDaily ? dailyAll : []),
+      ...(includeOpen ? data.open : []),
+      ...(includeClose ? data.close : []),
+      ...(includeDaily ? data.daily : []),
       ...(includeMonthly ? data.monthly : []),
     ];
     const total = scoped.length;
@@ -62,7 +65,15 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
 
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
     const modeLabel =
-      data.mode === "daily" ? "Daily" : data.mode === "monthly" ? "Weekly Cleaning" : "Daily + Weekly Cleaning";
+      data.mode === "open"
+        ? "Open Bar"
+        : data.mode === "close"
+          ? "Close Bar"
+          : data.mode === "daily"
+            ? "Daily"
+            : data.mode === "monthly"
+              ? "Weekly Cleaning"
+              : "Daily + Weekly Cleaning";
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#222">
@@ -77,8 +88,8 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
           <tr><td style="padding:4px 0"><b>Type:</b></td><td>${escapeHtml(modeLabel)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
         </table>
-        ${includeDaily ? renderList("Open Bar", data.open) : ""}
-        ${includeDaily ? renderList("Close Bar", data.close) : ""}
+        ${includeOpen ? renderList("Open Bar", data.open) : ""}
+        ${includeClose ? renderList("Close Bar", data.close) : ""}
         ${includeDaily && data.daily.length > 0 ? renderList("Other Daily Tasks", data.daily) : ""}
         ${includeMonthly ? renderList("Weekly Cleaning", data.monthly) : ""}
       </div>

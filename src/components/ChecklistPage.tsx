@@ -206,6 +206,34 @@ export function ChecklistPage({ mode }: Props) {
     });
   };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
+  const [todayLabel, setTodayLabel] = useState("");
+  useEffect(() => {
+    setTodayLabel(
+      new Date().toLocaleDateString(undefined, {
+        weekday: "short",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }),
+    );
+  }, []);
+  const [dailySection, setDailySectionState] = useState<"open" | "close">("open");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("checklist:dailySection");
+      if (v === "open" || v === "close") setDailySectionState(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setDailySection = (s: "open" | "close") => {
+    setDailySectionState(s);
+    try {
+      localStorage.setItem("checklist:dailySection", s);
+    } catch {
+      /* ignore */
+    }
+  };
   const [recipients, setRecipients] = useState<string[]>([]);
   const [outletNames, setOutletNames] = useState<Record<Outlet, string>>(DEFAULT_OUTLET_NAMES);
   const [submitting, setSubmitting] = useState(false);
@@ -672,22 +700,27 @@ export function ChecklistPage({ mode }: Props) {
       // Send ONLY this device's currently-selected outlet data. Concurrent
       // submits from other devices/outlets are independent.
       const outletLabel = outletNames[outlet] || outlet;
+      // Only the section the user is currently working on is reported.
+      const submitMode: "open" | "close" | "monthly" = isDaily ? dailySection : "monthly";
+      const openScoped = submitMode === "open" ? data.open : [];
+      const closeScoped = submitMode === "close" ? data.close : [];
+      const monthlyScoped = submitMode === "monthly" ? data.monthly : [];
       const res = await send({
         data: {
           outlet: outletLabel,
           signedBy: data.signedBy,
           reportDate: data.reportDate,
-          openTime: data.openTime,
-          closeTime: data.closeTime,
-          mode: "all",
-          open: data.open,
-          close: data.close,
+          openTime: submitMode === "close" ? "" : data.openTime,
+          closeTime: submitMode === "close" ? data.closeTime : "",
+          mode: submitMode,
+          open: openScoped,
+          close: closeScoped,
           daily: [],
-          monthly: data.monthly,
+          monthly: monthlyScoped,
           recipients,
         },
       });
-      const all = [...data.open, ...data.close, ...data.monthly];
+      const all = [...openScoped, ...closeScoped, ...monthlyScoped];
       const totalTasks = all.length;
       const doneTasks = all.filter((x) => x.done).length;
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
@@ -695,23 +728,37 @@ export function ChecklistPage({ mode }: Props) {
         report_date: data.reportDate,
         outlet: outletLabel,
         signed_by: data.signedBy,
-        open_time: data.openTime,
-        close_time: data.closeTime,
-        open_tasks: JSON.parse(JSON.stringify(data.open)),
-        close_tasks: JSON.parse(JSON.stringify(data.close)),
-        monthly_tasks: JSON.parse(JSON.stringify(data.monthly)),
+        open_time: submitMode === "close" ? "" : data.openTime,
+        close_time: submitMode === "close" ? data.closeTime : "",
+        open_tasks: JSON.parse(JSON.stringify(openScoped)),
+        close_tasks: JSON.parse(JSON.stringify(closeScoped)),
+        monthly_tasks: JSON.parse(JSON.stringify(monthlyScoped)),
         total_tasks: totalTasks,
         done_tasks: doneTasks,
         percent,
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      // Clear ONLY this device's local working state for the current outlet.
-      // Task headings (template) are shared and remain intact. Other devices'
-      // checkboxes/signed-by are unaffected.
-      const cleared: LocalWork = { ...DEFAULT_WORK(), reportDate: data.reportDate };
-      setWork(cleared);
-      writeLocalWork(outlet, cleared);
+      // Clear ONLY the submitted section's ticks/remarks for this device.
+      const submittedIds = new Set(all.map((x) => x.id));
+      setWork((prev) => {
+        const done = { ...prev.done };
+        const remark = { ...prev.remark };
+        for (const id of submittedIds) {
+          delete done[id];
+          delete remark[id];
+        }
+        const next: LocalWork = {
+          ...prev,
+          done,
+          remark,
+          signedBy: "",
+          openTime: submitMode === "close" ? prev.openTime : "",
+          closeTime: submitMode === "close" ? "" : prev.closeTime,
+        };
+        writeLocalWork(outlet, next);
+        return next;
+      });
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
@@ -723,7 +770,7 @@ export function ChecklistPage({ mode }: Props) {
   return (
     <div className="min-h-screen bg-background">
       <Toaster richColors position="top-center" />
-      <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 pb-32">
         <div className="flex justify-end mb-2">
           <LangToggle />
         </div>
@@ -733,6 +780,7 @@ export function ChecklistPage({ mode }: Props) {
             {t("barOperations")}
           </div>
           <h1 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight">{t("barChecklist")}</h1>
+          <p className="mt-1 text-xs text-muted-foreground tabular-nums">{todayLabel}</p>
         </header>
 
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
@@ -821,6 +869,37 @@ export function ChecklistPage({ mode }: Props) {
           </div>
         </section>
 
+        {isDaily && (
+          <div className="sticky top-3 z-20 mb-6 flex justify-center">
+            <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-card/80 p-1.5 shadow-xl backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setDailySection("open")}
+                aria-pressed={dailySection === "open"}
+                className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  dailySection === "open"
+                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t("openBar")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDailySection("close")}
+                aria-pressed={dailySection === "close"}
+                className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  dailySection === "close"
+                    ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t("closeBar")}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-6 mb-8">
           {(() => {
             const buildMeta = (
@@ -866,27 +945,26 @@ export function ChecklistPage({ mode }: Props) {
             );
 
             if (isDaily) {
-              return (
-                <>
-                  <ChecklistSection
-                    title={t("openBar")}
-                    tasks={data.open}
-                    onChange={(open) => update({ open })}
-                    variant="open"
-                    headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
-                      update({ openTime: v }),
-                    )}
-                  />
-                  <ChecklistSection
-                    title={t("closeBar")}
-                    tasks={data.close}
-                    onChange={(close) => update({ close })}
-                    variant="close"
-                    headerExtra={buildMeta(t("closeTime"), "closeTime", data.closeTime, (v) =>
-                      update({ closeTime: v }),
-                    )}
-                  />
-                </>
+              return dailySection === "open" ? (
+                <ChecklistSection
+                  title={t("openBar")}
+                  tasks={data.open}
+                  onChange={(open) => update({ open })}
+                  variant="open"
+                  headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
+                    update({ openTime: v }),
+                  )}
+                />
+              ) : (
+                <ChecklistSection
+                  title={t("closeBar")}
+                  tasks={data.close}
+                  onChange={(close) => update({ close })}
+                  variant="close"
+                  headerExtra={buildMeta(t("closeTime"), "closeTime", data.closeTime, (v) =>
+                    update({ closeTime: v }),
+                  )}
+                />
               );
             }
             return (

@@ -133,6 +133,10 @@ const dict = {
     enterDeleteCode: "Enter delete code",
     wrongDeleteCode: "Wrong delete code",
     historyDeleted: "All report history deleted",
+    viewSection: "Show",
+    sectionAll: "All",
+    overallView: "Overall view",
+    today: "Today",
   },
   th: {
     barOperations: "ปฏิบัติงานบาร์",
@@ -253,6 +257,10 @@ const dict = {
     enterDeleteCode: "ใส่รหัสสำหรับลบ",
     wrongDeleteCode: "รหัสลบไม่ถูกต้อง",
     historyDeleted: "ลบประวัติรีพอร์ททั้งหมดแล้ว",
+    viewSection: "แสดง",
+    sectionAll: "ทั้งหมด",
+    overallView: "ภาพรวม",
+    today: "วันนี้",
   },
 } as const;
 
