@@ -49,11 +49,14 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
     if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured");
 
+    const includeOpen = data.mode === "open" || data.mode === "daily" || data.mode === "all";
+    const includeClose = data.mode === "close" || data.mode === "daily" || data.mode === "all";
     const includeDaily = data.mode === "daily" || data.mode === "all";
     const includeMonthly = data.mode === "monthly" || data.mode === "all";
-    const dailyAll = [...data.open, ...data.close, ...data.daily];
     const scoped = [
-      ...(includeDaily ? dailyAll : []),
+      ...(includeOpen ? data.open : []),
+      ...(includeClose ? data.close : []),
+      ...(includeDaily ? data.daily : []),
       ...(includeMonthly ? data.monthly : []),
     ];
     const total = scoped.length;
