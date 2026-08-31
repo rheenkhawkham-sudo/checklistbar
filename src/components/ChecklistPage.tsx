@@ -206,6 +206,16 @@ export function ChecklistPage({ mode }: Props) {
     });
   };
   const [work, setWork] = useState<LocalWork>(DEFAULT_WORK);
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(undefined, {
+        weekday: "short",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }),
+    [],
+  );
   const [dailySection, setDailySectionState] = useState<"open" | "close">("open");
   useEffect(() => {
     try {
