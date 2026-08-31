@@ -689,22 +689,27 @@ export function ChecklistPage({ mode }: Props) {
       // Send ONLY this device's currently-selected outlet data. Concurrent
       // submits from other devices/outlets are independent.
       const outletLabel = outletNames[outlet] || outlet;
+      // Only the section the user is currently working on is reported.
+      const submitMode: "open" | "close" | "monthly" = isDaily ? dailySection : "monthly";
+      const openScoped = submitMode === "open" ? data.open : [];
+      const closeScoped = submitMode === "close" ? data.close : [];
+      const monthlyScoped = submitMode === "monthly" ? data.monthly : [];
       const res = await send({
         data: {
           outlet: outletLabel,
           signedBy: data.signedBy,
           reportDate: data.reportDate,
-          openTime: data.openTime,
-          closeTime: data.closeTime,
-          mode: "all",
-          open: data.open,
-          close: data.close,
+          openTime: submitMode === "close" ? "" : data.openTime,
+          closeTime: submitMode === "close" ? data.closeTime : "",
+          mode: submitMode,
+          open: openScoped,
+          close: closeScoped,
           daily: [],
-          monthly: data.monthly,
+          monthly: monthlyScoped,
           recipients,
         },
       });
-      const all = [...data.open, ...data.close, ...data.monthly];
+      const all = [...openScoped, ...closeScoped, ...monthlyScoped];
       const totalTasks = all.length;
       const doneTasks = all.filter((x) => x.done).length;
       const percent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
@@ -712,23 +717,37 @@ export function ChecklistPage({ mode }: Props) {
         report_date: data.reportDate,
         outlet: outletLabel,
         signed_by: data.signedBy,
-        open_time: data.openTime,
-        close_time: data.closeTime,
-        open_tasks: JSON.parse(JSON.stringify(data.open)),
-        close_tasks: JSON.parse(JSON.stringify(data.close)),
-        monthly_tasks: JSON.parse(JSON.stringify(data.monthly)),
+        open_time: submitMode === "close" ? "" : data.openTime,
+        close_time: submitMode === "close" ? data.closeTime : "",
+        open_tasks: JSON.parse(JSON.stringify(openScoped)),
+        close_tasks: JSON.parse(JSON.stringify(closeScoped)),
+        monthly_tasks: JSON.parse(JSON.stringify(monthlyScoped)),
         total_tasks: totalTasks,
         done_tasks: doneTasks,
         percent,
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
-      // Clear ONLY this device's local working state for the current outlet.
-      // Task headings (template) are shared and remain intact. Other devices'
-      // checkboxes/signed-by are unaffected.
-      const cleared: LocalWork = { ...DEFAULT_WORK(), reportDate: data.reportDate };
-      setWork(cleared);
-      writeLocalWork(outlet, cleared);
+      // Clear ONLY the submitted section's ticks/remarks for this device.
+      const submittedIds = new Set(all.map((x) => x.id));
+      setWork((prev) => {
+        const done = { ...prev.done };
+        const remark = { ...prev.remark };
+        for (const id of submittedIds) {
+          delete done[id];
+          delete remark[id];
+        }
+        const next: LocalWork = {
+          ...prev,
+          done,
+          remark,
+          signedBy: "",
+          openTime: submitMode === "close" ? prev.openTime : "",
+          closeTime: submitMode === "close" ? "" : prev.closeTime,
+        };
+        writeLocalWork(outlet, next);
+        return next;
+      });
     } catch (e) {
       console.error(e);
       toast.error(t("sendFailed"));
