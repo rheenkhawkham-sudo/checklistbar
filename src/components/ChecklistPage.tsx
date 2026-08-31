@@ -914,27 +914,26 @@ export function ChecklistPage({ mode }: Props) {
             );
 
             if (isDaily) {
-              return (
-                <>
-                  <ChecklistSection
-                    title={t("openBar")}
-                    tasks={data.open}
-                    onChange={(open) => update({ open })}
-                    variant="open"
-                    headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
-                      update({ openTime: v }),
-                    )}
-                  />
-                  <ChecklistSection
-                    title={t("closeBar")}
-                    tasks={data.close}
-                    onChange={(close) => update({ close })}
-                    variant="close"
-                    headerExtra={buildMeta(t("closeTime"), "closeTime", data.closeTime, (v) =>
-                      update({ closeTime: v }),
-                    )}
-                  />
-                </>
+              return dailySection === "open" ? (
+                <ChecklistSection
+                  title={t("openBar")}
+                  tasks={data.open}
+                  onChange={(open) => update({ open })}
+                  variant="open"
+                  headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
+                    update({ openTime: v }),
+                  )}
+                />
+              ) : (
+                <ChecklistSection
+                  title={t("closeBar")}
+                  tasks={data.close}
+                  onChange={(close) => update({ close })}
+                  variant="close"
+                  headerExtra={buildMeta(t("closeTime"), "closeTime", data.closeTime, (v) =>
+                    update({ closeTime: v }),
+                  )}
+                />
               );
             }
             return (
