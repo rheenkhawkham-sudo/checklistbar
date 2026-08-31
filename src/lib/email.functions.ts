@@ -14,7 +14,7 @@ const PayloadSchema = z.object({
   reportDate: z.string().trim().min(1).max(40),
   openTime: z.string().trim().max(20).optional().default(""),
   closeTime: z.string().trim().max(20).optional().default(""),
-  mode: z.enum(["daily", "monthly", "all"]).default("all"),
+  mode: z.enum(["daily", "monthly", "all", "open", "close"]).default("all"),
   daily: z.array(TaskSchema).max(200).default([]),
   open: z.array(TaskSchema).max(200).default([]),
   close: z.array(TaskSchema).max(200).default([]),
