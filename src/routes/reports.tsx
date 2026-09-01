@@ -312,8 +312,31 @@ function ReportsPage() {
       const toKey = format(dateRange.to ?? dateRange.from, "yyyy-MM-dd");
       list = list.filter((r) => r.report_date >= fromKey && r.report_date <= toKey);
     }
+    if (section !== "all") {
+      const pick = (r: Report) =>
+        section === "open" ? r.open_tasks : section === "close" ? r.close_tasks : r.monthly_tasks;
+      list = list.filter((r) => (pick(r) ?? []).length > 0);
+    }
     return list;
-  }, [reports, outlet, dateMode, singleDay, pickYear, pickMonth, dateRange]);
+  }, [reports, outlet, dateMode, singleDay, pickYear, pickMonth, dateRange, section]);
+
+  const overall = useMemo(() => {
+    const calc = (pick: (r: Report) => Task[] | undefined) => {
+      let total = 0;
+      let done = 0;
+      for (const r of filtered) {
+        const tasks = pick(r) ?? [];
+        total += tasks.length;
+        done += tasks.filter((x) => x.done).length;
+      }
+      return { total, done, percent: total === 0 ? 0 : Math.round((done / total) * 100) };
+    };
+    return {
+      open: calc((r) => r.open_tasks),
+      close: calc((r) => r.close_tasks),
+      weekly: calc((r) => r.monthly_tasks),
+    };
+  }, [filtered]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
