@@ -171,6 +171,7 @@ function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
+  const [section, setSection] = useState<SectionKey>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [outletNames, setOutletNames] = useState<Record<string, string>>({});
   const [outletIds, setOutletIds] = useState<string[]>([...DEFAULT_OUTLETS]);
