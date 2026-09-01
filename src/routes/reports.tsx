@@ -521,7 +521,7 @@ function ReportsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadPDF(outlet, filtered)}
+              onClick={() => downloadPDF(outlet, filtered, section)}
               disabled={filtered.length === 0}
             >
               <Download className="h-4 w-4 mr-2" />
