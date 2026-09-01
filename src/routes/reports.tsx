@@ -709,9 +709,15 @@ function ReportsPage() {
                       </button>
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
-                          <TaskList title={t("openBar")} tasks={r.open_tasks} />
-                          <TaskList title={t("closeBar")} tasks={r.close_tasks} />
-                          <TaskList title={t("weeklyCleaning")} tasks={r.monthly_tasks} />
+                          {(section === "all" || section === "open") && (
+                            <TaskList title={t("openBar")} tasks={r.open_tasks} />
+                          )}
+                          {(section === "all" || section === "close") && (
+                            <TaskList title={t("closeBar")} tasks={r.close_tasks} />
+                          )}
+                          {(section === "all" || section === "weekly") && (
+                            <TaskList title={t("weeklyCleaning")} tasks={r.monthly_tasks} />
+                          )}
                         </div>
                       )}
                     </article>
