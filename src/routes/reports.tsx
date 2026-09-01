@@ -23,6 +23,7 @@ import { getPassword } from "@/lib/passwords";
 import { useI18n, LangToggle } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
 import { RiuLogo } from "@/components/RiuLogo";
+import { CircularProgress } from "@/components/CircularProgress";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
@@ -86,7 +87,9 @@ function fmtKey(dateStr: string, period: Period) {
   });
 }
 
-function downloadPDF(label: string, reports: Report[]) {
+type SectionKey = "all" | "open" | "close" | "weekly";
+
+function downloadPDF(label: string, reports: Report[], section: SectionKey = "all") {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const title = `Bar Checklist Report — ${label}`;
   doc.setFontSize(14);
@@ -118,11 +121,14 @@ function downloadPDF(label: string, reports: Report[]) {
     y += 6;
 
     const body: string[][] = [];
-    const sections: [string, Task[]][] = [
-      ["Open Bar", r.open_tasks ?? []],
-      ["Close Bar", r.close_tasks ?? []],
-      ["Weekly Cleaning", r.monthly_tasks ?? []],
+    const allSections: [SectionKey, string, Task[]][] = [
+      ["open", "Open Bar", r.open_tasks ?? []],
+      ["close", "Close Bar", r.close_tasks ?? []],
+      ["weekly", "Weekly Cleaning", r.monthly_tasks ?? []],
     ];
+    const sections: [string, Task[]][] = allSections
+      .filter(([k]) => section === "all" || k === section)
+      .map(([, name, tasks]) => [name, tasks]);
     for (const [section, tasks] of sections) {
       for (const task of tasks) {
         body.push([section, task.text, task.done ? "Yes" : "No", task.remark ?? ""]);
@@ -166,6 +172,7 @@ function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
   const [outlet, setOutlet] = useState<OutletSelection>("All Outlets");
+  const [section, setSection] = useState<SectionKey>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [outletNames, setOutletNames] = useState<Record<string, string>>({});
   const [outletIds, setOutletIds] = useState<string[]>([...DEFAULT_OUTLETS]);
@@ -306,8 +313,31 @@ function ReportsPage() {
       const toKey = format(dateRange.to ?? dateRange.from, "yyyy-MM-dd");
       list = list.filter((r) => r.report_date >= fromKey && r.report_date <= toKey);
     }
+    if (section !== "all") {
+      const pick = (r: Report) =>
+        section === "open" ? r.open_tasks : section === "close" ? r.close_tasks : r.monthly_tasks;
+      list = list.filter((r) => (pick(r) ?? []).length > 0);
+    }
     return list;
-  }, [reports, outlet, dateMode, singleDay, pickYear, pickMonth, dateRange]);
+  }, [reports, outlet, dateMode, singleDay, pickYear, pickMonth, dateRange, section]);
+
+  const overall = useMemo(() => {
+    const calc = (pick: (r: Report) => Task[] | undefined) => {
+      let total = 0;
+      let done = 0;
+      for (const r of filtered) {
+        const tasks = pick(r) ?? [];
+        total += tasks.length;
+        done += tasks.filter((x) => x.done).length;
+      }
+      return { total, done, percent: total === 0 ? 0 : Math.round((done / total) * 100) };
+    };
+    return {
+      open: calc((r) => r.open_tasks),
+      close: calc((r) => r.close_tasks),
+      weekly: calc((r) => r.monthly_tasks),
+    };
+  }, [filtered]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Report[]>();
@@ -436,6 +466,49 @@ function ReportsPage() {
           ))}
         </div>
 
+        <div className="mb-4 flex flex-wrap justify-center gap-2">
+          {([
+            ["all", t("sectionAll")],
+            ["open", t("openBar")],
+            ["close", t("closeBar")],
+            ["weekly", t("weeklyCleaning")],
+          ] as [SectionKey, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSection(key)}
+              className={`px-5 py-2 rounded-full border text-sm font-semibold transition-all shadow-sm ${
+                section === key
+                  ? "bg-primary text-primary-foreground border-primary shadow-md"
+                  : "bg-card hover:bg-accent/40"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4">
+            {t("overallView")} — {outletLabel(outlet)}
+          </h2>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-md mx-auto">
+            {([
+              ["open", t("openShort"), overall.open],
+              ["close", t("closeShort"), overall.close],
+              ["weekly", t("weeklyShort"), overall.weekly],
+            ] as [SectionKey, string, { done: number; total: number; percent: number }][])
+              .filter(([key]) => section === "all" || key === section)
+              .map(([key, label, v]) => (
+                <div key={key} className="flex flex-col items-center">
+                  <CircularProgress percent={v.percent} size={84} />
+                  <p className="mt-2 text-[11px] sm:text-xs text-muted-foreground tabular-nums">
+                    {label} {v.done}/{v.total}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </section>
+
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
@@ -448,7 +521,7 @@ function ReportsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadPDF(outlet, filtered)}
+              onClick={() => downloadPDF(outlet, filtered, section)}
               disabled={filtered.length === 0}
             >
               <Download className="h-4 w-4 mr-2" />
@@ -636,9 +709,15 @@ function ReportsPage() {
                       </button>
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
-                          <TaskList title={t("openBar")} tasks={r.open_tasks} />
-                          <TaskList title={t("closeBar")} tasks={r.close_tasks} />
-                          <TaskList title={t("weeklyCleaning")} tasks={r.monthly_tasks} />
+                          {(section === "all" || section === "open") && (
+                            <TaskList title={t("openBar")} tasks={r.open_tasks} />
+                          )}
+                          {(section === "all" || section === "close") && (
+                            <TaskList title={t("closeBar")} tasks={r.close_tasks} />
+                          )}
+                          {(section === "all" || section === "weekly") && (
+                            <TaskList title={t("weeklyCleaning")} tasks={r.monthly_tasks} />
+                          )}
                         </div>
                       )}
                     </article>
