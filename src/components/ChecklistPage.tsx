@@ -1017,7 +1017,10 @@ export function ChecklistPage({ mode }: Props) {
 
         <RecipientsSection recipients={recipients} setRecipients={setRecipients} />
 
-        <div className="sticky bottom-4 z-10 mt-6">
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/90 backdrop-blur-md">
+        <div className="max-w-4xl mx-auto px-4 py-3">
           <Button
             size="lg"
             className="w-full h-14 text-base shadow-lg"
@@ -1026,8 +1029,9 @@ export function ChecklistPage({ mode }: Props) {
           >
             <Send className="mr-2 h-5 w-5" />
             {submitting ? t("sending") : t("submit")}
+            {isDaily ? ` — ${dailySection === "open" ? t("openBar") : t("closeBar")}` : ""}
           </Button>
-          <p className="text-center text-xs text-muted-foreground mt-2">
+          <p className="text-center text-xs text-muted-foreground mt-1.5">
             {recipients.length > 0
               ? t(recipients.length > 1 ? "emailedToPlural" : "emailedTo", { n: recipients.length })
               : t("emailedToDefault")}
