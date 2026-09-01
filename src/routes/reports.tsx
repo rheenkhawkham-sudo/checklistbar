@@ -120,11 +120,14 @@ function downloadPDF(label: string, reports: Report[], section: SectionKey = "al
     y += 6;
 
     const body: string[][] = [];
-    const sections: [string, Task[]][] = [
-      ["Open Bar", r.open_tasks ?? []],
-      ["Close Bar", r.close_tasks ?? []],
-      ["Weekly Cleaning", r.monthly_tasks ?? []],
+    const allSections: [SectionKey, string, Task[]][] = [
+      ["open", "Open Bar", r.open_tasks ?? []],
+      ["close", "Close Bar", r.close_tasks ?? []],
+      ["weekly", "Weekly Cleaning", r.monthly_tasks ?? []],
     ];
+    const sections: [string, Task[]][] = allSections
+      .filter(([k]) => section === "all" || k === section)
+      .map(([, name, tasks]) => [name, tasks]);
     for (const [section, tasks] of sections) {
       for (const task of tasks) {
         body.push([section, task.text, task.done ? "Yes" : "No", task.remark ?? ""]);
