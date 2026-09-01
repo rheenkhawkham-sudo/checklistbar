@@ -466,6 +466,49 @@ function ReportsPage() {
           ))}
         </div>
 
+        <div className="mb-4 flex flex-wrap justify-center gap-2">
+          {([
+            ["all", t("sectionAll")],
+            ["open", t("openBar")],
+            ["close", t("closeBar")],
+            ["weekly", t("weeklyCleaning")],
+          ] as [SectionKey, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSection(key)}
+              className={`px-5 py-2 rounded-full border text-sm font-semibold transition-all shadow-sm ${
+                section === key
+                  ? "bg-primary text-primary-foreground border-primary shadow-md"
+                  : "bg-card hover:bg-accent/40"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4">
+            {t("overallView")} — {outletLabel(outlet)}
+          </h2>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-md mx-auto">
+            {([
+              ["open", t("openShort"), overall.open],
+              ["close", t("closeShort"), overall.close],
+              ["weekly", t("weeklyShort"), overall.weekly],
+            ] as [SectionKey, string, { done: number; total: number; percent: number }][])
+              .filter(([key]) => section === "all" || key === section)
+              .map(([key, label, v]) => (
+                <div key={key} className="flex flex-col items-center">
+                  <CircularProgress percent={v.percent} size={84} />
+                  <p className="mt-2 text-[11px] sm:text-xs text-muted-foreground tabular-nums">
+                    {label} {v.done}/{v.total}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </section>
+
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList>
