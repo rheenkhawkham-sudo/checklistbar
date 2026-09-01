@@ -86,7 +86,9 @@ function fmtKey(dateStr: string, period: Period) {
   });
 }
 
-function downloadPDF(label: string, reports: Report[]) {
+type SectionKey = "all" | "open" | "close" | "weekly";
+
+function downloadPDF(label: string, reports: Report[], section: SectionKey = "all") {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const title = `Bar Checklist Report — ${label}`;
   doc.setFontSize(14);
