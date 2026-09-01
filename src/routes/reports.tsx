@@ -23,6 +23,7 @@ import { getPassword } from "@/lib/passwords";
 import { useI18n, LangToggle } from "@/lib/i18n";
 import { usePasswords } from "@/lib/usePasswords";
 import { RiuLogo } from "@/components/RiuLogo";
+import { CircularProgress } from "@/components/CircularProgress";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
