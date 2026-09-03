@@ -359,6 +359,8 @@ export function ChecklistPage({ mode }: Props) {
         return out;
       };
 
+      const savedNames = map.get(STATE_KEY_OUTLET_NAMES) as Record<string, string> | undefined;
+
       await Promise.all(
         ids.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
@@ -371,18 +373,21 @@ export function ChecklistPage({ mode }: Props) {
 
           // Pull the latest report AND today's reports (could be multiple
           // submits today) so we can recover any task added/edited today.
+          const reportNames = Array.from(
+            new Set([o, savedNames?.[o]].filter((name): name is string => typeof name === "string" && name.trim().length > 0)),
+          );
           const [{ data: latest }, { data: todayRows }] = await Promise.all([
             supabase
               .from("checklist_reports")
               .select("open_tasks,close_tasks,monthly_tasks")
-              .eq("outlet", o)
+              .in("outlet", reportNames)
               .order("created_at", { ascending: false })
               .limit(1)
               .maybeSingle(),
             supabase
               .from("checklist_reports")
               .select("open_tasks,close_tasks,monthly_tasks,created_at")
-              .eq("outlet", o)
+              .in("outlet", reportNames)
               .eq("report_date", today)
               .order("created_at", { ascending: false }),
           ]);
@@ -522,10 +527,20 @@ export function ChecklistPage({ mode }: Props) {
             };
             const remoteCanon = canon(remoteTpl);
             if (remoteCanon === lastSyncedTplCanonRef.current[o]) return;
-            const localTpl = templatesRef.current[o];
+            const localTpl = templatesRef.current[o] ?? DEFAULT_TEMPLATE();
             const localCanon = canon(localTpl);
             if (localCanon === lastSyncedTplCanonRef.current[o]) {
               // No local edits pending for this outlet — adopt remote.
+              setTemplates((prev) => ({ ...prev, [o]: remoteTpl }));
+              lastSyncedTplCanonRef.current[o] = remoteCanon;
+              return;
+            }
+            const countTasks = (tpl: OutletTemplate) =>
+              tpl.open.length + tpl.close.length + tpl.monthly.length;
+            if (countTasks(remoteTpl) > countTasks(localTpl)) {
+              // A database recovery can arrive while an older tab still has
+              // an incomplete template in memory. Always accept the more
+              // complete copy so that stale tabs cannot erase restored tasks.
               setTemplates((prev) => ({ ...prev, [o]: remoteTpl }));
               lastSyncedTplCanonRef.current[o] = remoteCanon;
               return;
