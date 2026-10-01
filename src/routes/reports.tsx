@@ -65,6 +65,7 @@ interface Report {
   open_tasks: Task[];
   close_tasks: Task[];
   monthly_tasks: Task[];
+  shift?: string;
   total_tasks: number;
   done_tasks: number;
   percent: number;
@@ -122,7 +123,7 @@ function downloadPDF(label: string, reports: Report[], section: SectionKey = "al
 
     const body: string[][] = [];
     const allSections: [SectionKey, string, Task[]][] = [
-      ["open", "Open Bar", r.open_tasks ?? []],
+      ["open", r.shift ? `Job To Do - ${r.shift.charAt(0).toUpperCase() + r.shift.slice(1)} Shift` : "Job To Do", r.open_tasks ?? []],
       ["close", "Close Bar", r.close_tasks ?? []],
       ["weekly", "Weekly Cleaning", r.monthly_tasks ?? []],
     ];
