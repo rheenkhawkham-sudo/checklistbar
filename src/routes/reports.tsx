@@ -65,6 +65,7 @@ interface Report {
   open_tasks: Task[];
   close_tasks: Task[];
   monthly_tasks: Task[];
+  shift?: string;
   total_tasks: number;
   done_tasks: number;
   percent: number;
@@ -122,7 +123,7 @@ function downloadPDF(label: string, reports: Report[], section: SectionKey = "al
 
     const body: string[][] = [];
     const allSections: [SectionKey, string, Task[]][] = [
-      ["open", "Open Bar", r.open_tasks ?? []],
+      ["open", r.shift ? `Job To Do - ${r.shift.charAt(0).toUpperCase() + r.shift.slice(1)} Shift` : "Job To Do", r.open_tasks ?? []],
       ["close", "Close Bar", r.close_tasks ?? []],
       ["weekly", "Weekly Cleaning", r.monthly_tasks ?? []],
     ];
@@ -710,7 +711,7 @@ function ReportsPage() {
                       {expanded[r.id] && (
                         <div className="px-4 pb-4 pt-1 border-t bg-background/40 space-y-4">
                           {(section === "all" || section === "open") && (
-                            <TaskList title={t("openBar")} tasks={r.open_tasks} />
+                            <TaskList title={r.shift === "morning" || r.shift === "afternoon" || r.shift === "night" ? `${t("jobToDo")} — ${t(r.shift)}` : t("openBar")} tasks={r.open_tasks} />
                           )}
                           {(section === "all" || section === "close") && (
                             <TaskList title={t("closeBar")} tasks={r.close_tasks} />

@@ -1,0 +1,1 @@
+ALTER TABLE public.checklist_reports ADD COLUMN IF NOT EXISTS shift text NOT NULL DEFAULT '';

@@ -45,6 +45,7 @@ export type Database = {
           outlet: string
           percent: number
           report_date: string
+          shift: string
           signed_by: string
           total_tasks: number
         }
@@ -60,6 +61,7 @@ export type Database = {
           outlet: string
           percent?: number
           report_date: string
+          shift?: string
           signed_by: string
           total_tasks?: number
         }
@@ -75,6 +77,7 @@ export type Database = {
           outlet?: string
           percent?: number
           report_date?: string
+          shift?: string
           signed_by?: string
           total_tasks?: number
         }
