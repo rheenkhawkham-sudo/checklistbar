@@ -14,6 +14,7 @@ const PayloadSchema = z.object({
   reportDate: z.string().trim().min(1).max(40),
   openTime: z.string().trim().max(20).optional().default(""),
   closeTime: z.string().trim().max(20).optional().default(""),
+  shift: z.enum(["", "morning", "afternoon", "night"]).optional().default(""),
   mode: z.enum(["daily", "monthly", "all", "open", "close"]).default("all"),
   daily: z.array(TaskSchema).max(200).default([]),
   open: z.array(TaskSchema).max(200).default([]),
@@ -64,9 +65,12 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
     const now = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+    const shiftLabel =
+      data.shift === "morning" ? "Morning Shift" : data.shift === "afternoon" ? "Afternoon Shift" : data.shift === "night" ? "Night Shift" : "";
+    const jobLabel = shiftLabel ? `Job To Do — ${shiftLabel}` : "Job To Do";
     const modeLabel =
       data.mode === "open"
-        ? "Open Bar"
+        ? jobLabel
         : data.mode === "close"
           ? "Close Bar"
           : data.mode === "daily"
@@ -88,7 +92,7 @@ export const sendChecklistEmail = createServerFn({ method: "POST" })
           <tr><td style="padding:4px 0"><b>Type:</b></td><td>${escapeHtml(modeLabel)}</td></tr>
           <tr><td style="padding:4px 0"><b>Completion:</b></td><td>${done} / ${total} (${pct}%)</td></tr>
         </table>
-        ${includeOpen ? renderList("Open Bar", data.open) : ""}
+        ${includeOpen ? renderList(jobLabel, data.open) : ""}
         ${includeClose ? renderList("Close Bar", data.close) : ""}
         ${includeDaily && data.daily.length > 0 ? renderList("Other Daily Tasks", data.daily) : ""}
         ${includeMonthly ? renderList("Weekly Cleaning", data.monthly) : ""}
