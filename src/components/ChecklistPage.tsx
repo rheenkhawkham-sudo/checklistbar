@@ -54,8 +54,19 @@ const DEFAULT_MONTHLY: Task[] = [
   { id: "m5", text: "Restock garnish and condiments", done: false },
 ];
 
+export type Shift = "morning" | "afternoon" | "night";
+const SHIFTS: Shift[] = ["morning", "afternoon", "night"];
+// "open" holds the Morning shift (legacy Open Bar list).
+const SHIFT_FIELD: Record<Shift, "open" | "afternoon" | "night"> = {
+  morning: "open",
+  afternoon: "afternoon",
+  night: "night",
+};
+
 interface OutletData {
   open: Task[];
+  afternoon: Task[];
+  night: Task[];
   close: Task[];
   monthly: Task[];
   signedBy: string;
@@ -66,6 +77,8 @@ interface OutletData {
 
 const DEFAULT_DATA = (): OutletData => ({
   open: JSON.parse(JSON.stringify(DEFAULT_OPEN)),
+  afternoon: [],
+  night: [],
   close: JSON.parse(JSON.stringify(DEFAULT_CLOSE)),
   monthly: JSON.parse(JSON.stringify(DEFAULT_MONTHLY)),
   signedBy: "",
@@ -90,6 +103,8 @@ const LOCAL_KEY_WORK = (o: Outlet) => `checklist:work:${o}`; // per-device
 
 interface OutletTemplate {
   open: Task[]; // only id + text are authoritative; done/remark ignored on read
+  afternoon: Task[];
+  night: Task[];
   close: Task[];
   monthly: Task[];
 }
@@ -104,9 +119,20 @@ interface LocalWork {
 
 const DEFAULT_TEMPLATE = (): OutletTemplate => ({
   open: JSON.parse(JSON.stringify(DEFAULT_OPEN)),
+  afternoon: [],
+  night: [],
   close: JSON.parse(JSON.stringify(DEFAULT_CLOSE)),
   monthly: JSON.parse(JSON.stringify(DEFAULT_MONTHLY)),
 });
+const normTpl = (raw: Partial<OutletTemplate> | undefined | null): OutletTemplate => ({
+  open: stripTemplate(raw?.open),
+  afternoon: stripTemplate(raw?.afternoon),
+  night: stripTemplate(raw?.night),
+  close: stripTemplate(raw?.close),
+  monthly: stripTemplate(raw?.monthly),
+});
+const countTpl = (tpl: OutletTemplate) =>
+  tpl.open.length + tpl.afternoon.length + tpl.night.length + tpl.close.length + tpl.monthly.length;
 // Fallback used when an outlet was just added and has no template yet.
 const EMPTY_TEMPLATE: OutletTemplate = DEFAULT_TEMPLATE();
 const DEFAULT_WORK = (): LocalWork => ({
@@ -174,6 +200,8 @@ function projectData(tpl: OutletTemplate, work: LocalWork): OutletData {
     }));
   return {
     open: apply(tpl.open),
+    afternoon: apply(tpl.afternoon ?? []),
+    night: apply(tpl.night ?? []),
     close: apply(tpl.close),
     monthly: apply(tpl.monthly),
     signedBy: work.signedBy,
@@ -230,6 +258,23 @@ export function ChecklistPage({ mode }: Props) {
     setDailySectionState(s);
     try {
       localStorage.setItem("checklist:dailySection", s);
+    } catch {
+      /* ignore */
+    }
+  };
+  const [shift, setShiftState] = useState<Shift>("morning");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("checklist:shift");
+      if (v === "morning" || v === "afternoon" || v === "night") setShiftState(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setShift = (s: Shift) => {
+    setShiftState(s);
+    try {
+      localStorage.setItem("checklist:shift", s);
     } catch {
       /* ignore */
     }
@@ -315,7 +360,7 @@ export function ChecklistPage({ mode }: Props) {
         const same = (a?: Task[], b?: Task[]) =>
           JSON.stringify((a ?? []).map((x) => x.text)) ===
           JSON.stringify((b ?? []).map((x) => x.text));
-        return same(tpl.open, def.open) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
+        return same(tpl.open, def.open) && same(tpl.afternoon, def.afternoon) && same(tpl.night, def.night) && same(tpl.close, def.close) && same(tpl.monthly, def.monthly);
       };
 
       const rawIds = map.get(STATE_KEY_OUTLET_IDS);
@@ -364,12 +409,8 @@ export function ChecklistPage({ mode }: Props) {
       await Promise.all(
         ids.map(async (o) => {
           const raw = map.get(STATE_KEY_TEMPLATE(o)) as Partial<OutletTemplate> | undefined;
-          const tpl: OutletTemplate = {
-            open: stripTemplate(raw?.open),
-            close: stripTemplate(raw?.close),
-            monthly: stripTemplate(raw?.monthly),
-          };
-          const storedCount = tpl.open.length + tpl.close.length + tpl.monthly.length;
+          const tpl: OutletTemplate = normTpl(raw);
+          const storedCount = countTpl(tpl);
 
           // Pull the latest report AND today's reports (could be multiple
           // submits today) so we can recover any task added/edited today.
@@ -379,23 +420,25 @@ export function ChecklistPage({ mode }: Props) {
           const [{ data: latest }, { data: todayRows }] = await Promise.all([
             supabase
               .from("checklist_reports")
-              .select("open_tasks,close_tasks,monthly_tasks")
+              .select("open_tasks,close_tasks,monthly_tasks,shift")
               .in("outlet", reportNames)
               .order("created_at", { ascending: false })
               .limit(1)
               .maybeSingle(),
             supabase
               .from("checklist_reports")
-              .select("open_tasks,close_tasks,monthly_tasks,created_at")
+              .select("open_tasks,close_tasks,monthly_tasks,shift,created_at")
               .in("outlet", reportNames)
               .eq("report_date", today)
               .order("created_at", { ascending: false }),
           ]);
 
-          const toTpl = (r: { open_tasks: unknown; close_tasks: unknown; monthly_tasks: unknown } | null): OutletTemplate | null =>
+          const toTpl = (r: { open_tasks: unknown; close_tasks: unknown; monthly_tasks: unknown; shift?: string } | null): OutletTemplate | null =>
             r
               ? {
-                  open: stripTemplate((r.open_tasks ?? []) as unknown as Task[]),
+                  open: r.shift === "afternoon" || r.shift === "night" ? [] : stripTemplate((r.open_tasks ?? []) as unknown as Task[]),
+                  afternoon: r.shift === "afternoon" ? stripTemplate((r.open_tasks ?? []) as unknown as Task[]) : [],
+                  night: r.shift === "night" ? stripTemplate((r.open_tasks ?? []) as unknown as Task[]) : [],
                   close: stripTemplate((r.close_tasks ?? []) as unknown as Task[]),
                   monthly: stripTemplate((r.monthly_tasks ?? []) as unknown as Task[]),
                 }
@@ -410,7 +453,7 @@ export function ChecklistPage({ mode }: Props) {
           let base: OutletTemplate;
           if (storedCount > 0 && !isDefaultTpl(tpl)) {
             base = tpl;
-          } else if (latestTpl && latestTpl.open.length + latestTpl.close.length + latestTpl.monthly.length > 0) {
+          } else if (latestTpl && countTpl(latestTpl) > 0) {
             base = latestTpl;
           } else {
             base = DEFAULT_TEMPLATE();
@@ -423,6 +466,8 @@ export function ChecklistPage({ mode }: Props) {
           for (const r of todayTpls) {
             merged = {
               open: unionTasks(merged.open, r.open),
+              afternoon: unionTasks(merged.afternoon, r.afternoon),
+              night: unionTasks(merged.night, r.night),
               close: unionTasks(merged.close, r.close),
               monthly: unionTasks(merged.monthly, r.monthly),
             };
@@ -431,6 +476,8 @@ export function ChecklistPage({ mode }: Props) {
           if (latestTpl && base !== latestTpl) {
             merged = {
               open: unionTasks(merged.open, latestTpl.open),
+              afternoon: unionTasks(merged.afternoon, latestTpl.afternoon),
+              night: unionTasks(merged.night, latestTpl.night),
               close: unionTasks(merged.close, latestTpl.close),
               monthly: unionTasks(merged.monthly, latestTpl.monthly),
             };
@@ -520,11 +567,7 @@ export function ChecklistPage({ mode }: Props) {
             const o = row.key.slice("outlet:".length) as Outlet;
             if (!outletIdsRef.current.includes(o)) return;
             const raw = (row.value ?? {}) as Partial<OutletTemplate>;
-            const remoteTpl: OutletTemplate = {
-              open: stripTemplate(raw.open),
-              close: stripTemplate(raw.close),
-              monthly: stripTemplate(raw.monthly),
-            };
+            const remoteTpl: OutletTemplate = normTpl(raw);
             const remoteCanon = canon(remoteTpl);
             if (remoteCanon === lastSyncedTplCanonRef.current[o]) return;
             const localTpl = templatesRef.current[o] ?? DEFAULT_TEMPLATE();
@@ -535,8 +578,7 @@ export function ChecklistPage({ mode }: Props) {
               lastSyncedTplCanonRef.current[o] = remoteCanon;
               return;
             }
-            const countTasks = (tpl: OutletTemplate) =>
-              tpl.open.length + tpl.close.length + tpl.monthly.length;
+            const countTasks = countTpl;
             if (countTasks(remoteTpl) > countTasks(localTpl)) {
               // A database recovery can arrive while an older tab still has
               // an incomplete template in memory. Always accept the more
@@ -588,11 +630,7 @@ export function ChecklistPage({ mode }: Props) {
     }
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     for (const o of Object.keys(templates)) {
-      const snapshot: OutletTemplate = {
-        open: stripTemplate(templates[o].open),
-        close: stripTemplate(templates[o].close),
-        monthly: stripTemplate(templates[o].monthly),
-      };
+      const snapshot: OutletTemplate = normTpl(templates[o]);
       const snapshotCanon = canon(snapshot);
       if (snapshotCanon === lastSyncedTplCanonRef.current[o]) continue;
       const key = STATE_KEY_TEMPLATE(o);
@@ -656,9 +694,9 @@ export function ChecklistPage({ mode }: Props) {
 
   // Apply a Task[] update from the UI: split into template (id+text) edits
   // and work (done/remark) edits.
-  const applySectionUpdate = (section: "open" | "close" | "monthly", next: Task[]) => {
+  const applySectionUpdate = (section: "open" | "afternoon" | "night" | "close" | "monthly", next: Task[]) => {
     setTemplate((prev) => {
-      const prevSection = prev[section];
+      const prevSection = prev[section] ?? [];
       const sameTemplate =
         prevSection.length === next.length &&
         prevSection.every((p, i) => p.id === next[i]?.id && p.text === next[i]?.text);
@@ -674,7 +712,7 @@ export function ChecklistPage({ mode }: Props) {
         if (t.remark !== undefined) remark[t.id] = t.remark ?? "";
       }
       // garbage-collect entries for removed tasks in this section
-      const oldSection = templatesRef.current[outletRef.current][section];
+      const oldSection = templatesRef.current[outletRef.current]?.[section] ?? [];
       for (const o of oldSection) {
         if (!validIds.has(o.id)) {
           delete done[o.id];
@@ -692,6 +730,8 @@ export function ChecklistPage({ mode }: Props) {
   // section (open/close/monthly Task[]) updates to the right reducer.
   const update = (patch: Partial<OutletData>) => {
     if (patch.open) applySectionUpdate("open", patch.open);
+    if (patch.afternoon) applySectionUpdate("afternoon", patch.afternoon);
+    if (patch.night) applySectionUpdate("night", patch.night);
     if (patch.close) applySectionUpdate("close", patch.close);
     if (patch.monthly) applySectionUpdate("monthly", patch.monthly);
     const meta: Partial<Pick<LocalWork, "signedBy" | "reportDate" | "openTime" | "closeTime">> = {};
@@ -702,8 +742,9 @@ export function ChecklistPage({ mode }: Props) {
     if (Object.keys(meta).length > 0) updateMeta(meta);
   };
 
-  const dailyAll = useMemo(() => [...data.open, ...data.close], [data.open, data.close]);
-  const openP = useMemo(() => pct(data.open), [data.open]);
+  const dailyAll = useMemo(() => [...data.open, ...data.afternoon, ...data.night, ...data.close], [data.open, data.afternoon, data.night, data.close]);
+  const shiftTasks = data[SHIFT_FIELD[shift]];
+  const openP = useMemo(() => pct(shiftTasks), [shiftTasks]);
   const closeP = useMemo(() => pct(data.close), [data.close]);
   const monthlyP = useMemo(() => pct(data.monthly), [data.monthly]);
   const combinedP = useMemo(() => pct([...dailyAll, ...data.monthly]), [dailyAll, data.monthly]);
@@ -717,7 +758,7 @@ export function ChecklistPage({ mode }: Props) {
       const outletLabel = outletNames[outlet] || outlet;
       // Only the section the user is currently working on is reported.
       const submitMode: "open" | "close" | "monthly" = isDaily ? dailySection : "monthly";
-      const openScoped = submitMode === "open" ? data.open : [];
+      const openScoped = submitMode === "open" ? data[SHIFT_FIELD[shift]] : [];
       const closeScoped = submitMode === "close" ? data.close : [];
       const monthlyScoped = submitMode === "monthly" ? data.monthly : [];
       const res = await send({
@@ -728,6 +769,7 @@ export function ChecklistPage({ mode }: Props) {
           openTime: submitMode === "close" ? "" : data.openTime,
           closeTime: submitMode === "close" ? data.closeTime : "",
           mode: submitMode,
+          shift: submitMode === "open" ? shift : "",
           open: openScoped,
           close: closeScoped,
           daily: [],
@@ -751,6 +793,7 @@ export function ChecklistPage({ mode }: Props) {
         total_tasks: totalTasks,
         done_tasks: doneTasks,
         percent,
+        shift: submitMode === "open" ? shift : "",
       });
       if (dbErr) console.error("Failed to save report history", dbErr);
       toast.success(t("submitted", { to: res.recipient }));
@@ -866,7 +909,7 @@ export function ChecklistPage({ mode }: Props) {
             <div className="flex flex-col items-center">
               <CircularProgress percent={openP.percent} size={84} />
               <p className="mt-2 text-[11px] sm:text-xs text-muted-foreground tabular-nums">
-                {t("openShort")} {openP.done}/{openP.total}
+                {t(shift)} {openP.done}/{openP.total}
               </p>
             </div>
             <div className="flex flex-col items-center">
@@ -897,7 +940,7 @@ export function ChecklistPage({ mode }: Props) {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {t("openBar")}
+                {t("jobToDo")}
               </button>
               <button
                 type="button"
@@ -912,6 +955,26 @@ export function ChecklistPage({ mode }: Props) {
                 {t("closeBar")}
               </button>
             </div>
+          </div>
+        )}
+
+        {isDaily && dailySection === "open" && (
+          <div className="mb-6 grid grid-cols-3 gap-2 max-w-md mx-auto">
+            {SHIFTS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setShift(s)}
+                aria-pressed={shift === s}
+                className={`rounded-xl border px-2 py-2 text-xs sm:text-sm font-semibold transition-colors ${
+                  shift === s
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t(s)}
+              </button>
+            ))}
           </div>
         )}
 
@@ -962,9 +1025,10 @@ export function ChecklistPage({ mode }: Props) {
             if (isDaily) {
               return dailySection === "open" ? (
                 <ChecklistSection
-                  title={t("openBar")}
-                  tasks={data.open}
-                  onChange={(open) => update({ open })}
+                  key={shift}
+                  title={`${t("jobToDo")} — ${t(shift)}`}
+                  tasks={data[SHIFT_FIELD[shift]]}
+                  onChange={(tasks) => update({ [SHIFT_FIELD[shift]]: tasks } as Partial<OutletData>)}
                   variant="open"
                   headerExtra={buildMeta(t("openTime"), "openTime", data.openTime, (v) =>
                     update({ openTime: v }),
@@ -1044,7 +1108,7 @@ export function ChecklistPage({ mode }: Props) {
           >
             <Send className="mr-2 h-5 w-5" />
             {submitting ? t("sending") : t("submit")}
-            {isDaily ? ` — ${dailySection === "open" ? t("openBar") : t("closeBar")}` : ""}
+            {isDaily ? ` — ${dailySection === "open" ? t(shift) : t("closeBar")}` : ""}
           </Button>
           <p className="text-center text-xs text-muted-foreground mt-1.5">
             {recipients.length > 0
