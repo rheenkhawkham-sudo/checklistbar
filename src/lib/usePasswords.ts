@@ -1,13 +1,17 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
   requirePassword as basePrompt,
   changePassword as baseChange,
   type PasswordKind,
+  initPasswordSync,
 } from "@/lib/passwords";
 
 export function usePasswords() {
   const { t } = useI18n();
+  useEffect(() => {
+    void initPasswordSync();
+  }, []);
 
   const require = useCallback(
     (kind: PasswordKind, promptKey: "enterToEditTasks" | "enterToEditEmails" | "enterToEditReport" | "enterToDeleteReport" | "enterToDeleteReports" | "enterToEditOutlets") =>

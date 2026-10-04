@@ -31,12 +31,44 @@ function safeSet(key: string, value: string) {
   }
 }
 
+// ---- Cross-device sync via app_state("passwords") ----
+const REMOTE_KEY = "passwords";
+let syncStarted = false;
+function applyRemote(v: unknown) {
+  if (!v || typeof v !== "object") return;
+  const o = v as Partial<Record<PasswordKind, string>>;
+  (Object.keys(STORAGE_KEY) as PasswordKind[]).forEach((k) => {
+    if (typeof o[k] === "string" && o[k]) safeSet(STORAGE_KEY[k], o[k]!);
+  });
+}
+export async function initPasswordSync() {
+  if (syncStarted || typeof window === "undefined") return;
+  syncStarted = true;
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data } = await supabase.from("app_state").select("value").eq("key", REMOTE_KEY).maybeSingle();
+  if (data?.value) applyRemote(data.value);
+  supabase
+    .channel("passwords_sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "app_state", filter: `key=eq.${REMOTE_KEY}` }, (payload) => {
+      applyRemote((payload.new as { value?: unknown } | null)?.value);
+    })
+    .subscribe();
+}
+async function pushRemote() {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const value = { edit: getPassword("edit"), reports: getPassword("reports") };
+  await supabase
+    .from("app_state")
+    .upsert({ key: REMOTE_KEY, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+}
+
 export function getPassword(kind: PasswordKind): string {
   return safeGet(STORAGE_KEY[kind]) ?? DEFAULTS[kind];
 }
 
 export function setPassword(kind: PasswordKind, value: string) {
   safeSet(STORAGE_KEY[kind], value);
+  void pushRemote();
 }
 
 export interface PromptMessages {
