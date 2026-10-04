@@ -19,6 +19,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ChecklistSection, type Task } from "@/components/ChecklistSection";
 import { RiuLogo } from "@/components/RiuLogo";
+import { TaskLibrary, type LibTemplate } from "@/components/TaskLibrary";
+import { Settings } from "lucide-react";
 import { sendChecklistEmail } from "@/lib/email.functions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -282,6 +284,12 @@ export function ChecklistPage({ mode }: Props) {
   const [recipients, setRecipients] = useState<string[]>([]);
   const [outletNames, setOutletNames] = useState<Record<Outlet, string>>(DEFAULT_OUTLET_NAMES);
   const [submitting, setSubmitting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { requirePassword: askPw, changePassword: changePw } = usePasswords();
+  const openSettings = () => {
+    if (!askPw("edit", "enterToEditTasks")) return;
+    setSettingsOpen(true);
+  };
   const send = useServerFn(sendChecklistEmail);
 
   const data = useMemo(() => projectData(template, work), [template, work]);
@@ -829,7 +837,17 @@ export function ChecklistPage({ mode }: Props) {
     <div className="min-h-screen bg-background">
       <Toaster richColors position="top-center" />
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 pb-32">
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-end items-center gap-2 mb-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={openSettings}
+            aria-label={t("settings")}
+            title={t("settings")}
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
           <LangToggle />
         </div>
         <header className="text-center mb-6">
@@ -844,12 +862,6 @@ export function ChecklistPage({ mode }: Props) {
         <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs text-muted-foreground">{t("selectOutlet")}</Label>
-            <OutletNamesEditor
-              outletIds={outletIds}
-              setOutletIds={setOutletIds}
-              outletNames={outletNames}
-              setOutletNames={setOutletNames}
-            />
           </div>
           <Select value={outlet} onValueChange={(v) => setOutlet(v)}>
             <SelectTrigger className="mt-2 h-12 text-base font-semibold">
@@ -1094,7 +1106,68 @@ export function ChecklistPage({ mode }: Props) {
           })()}
         </div>
 
-        <RecipientsSection recipients={recipients} setRecipients={setRecipients} />
+        {settingsOpen && (
+          <div className="fixed inset-0 z-[45] overflow-y-auto bg-background/95 backdrop-blur-sm">
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" />
+                  {t("settings")}
+                </h2>
+                <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(false)}>
+                  <X className="h-4 w-4 mr-1" />
+                  {t("done")}
+                </Button>
+              </div>
+
+              <section className="rounded-2xl border bg-card p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold">{t("manageOutlets")}</h3>
+                  <OutletNamesEditor
+                    outletIds={outletIds}
+                    setOutletIds={setOutletIds}
+                    outletNames={outletNames}
+                    setOutletNames={setOutletNames}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {outletIds.map((o) => (
+                    <span key={o} className="rounded-full border px-3 py-1 text-xs">
+                      {outletNames[o] || o}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border bg-card p-5 shadow-sm">
+                <h3 className="text-base font-semibold mb-3">{t("manageTasks")}</h3>
+                <TaskLibrary
+                  outletIds={outletIds}
+                  outletNames={outletNames}
+                  templates={templates as unknown as Record<string, LibTemplate>}
+                  setTemplates={(next) => setTemplates(next as unknown as Record<Outlet, OutletTemplate>)}
+                />
+              </section>
+
+              <RecipientsSection recipients={recipients} setRecipients={setRecipients} alwaysEdit />
+
+              <section className="rounded-2xl border bg-card p-5 shadow-sm space-y-3">
+                <h3 className="text-base font-semibold">{t("changePassword")}</h3>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => changePw("edit")}>
+                    <KeyRound className="h-4 w-4 mr-1" />
+                    {t("settingsPassword")}
+                  </Button>
+                  <Button variant="outline" onClick={() => changePw("reports")}>
+                    <KeyRound className="h-4 w-4 mr-1" />
+                    {t("reportsPassword")}
+                  </Button>
+                </div>
+              </section>
+              <div className="h-24" />
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -1124,13 +1197,15 @@ export function ChecklistPage({ mode }: Props) {
 function RecipientsSection({
   recipients,
   setRecipients,
+  alwaysEdit,
 }: {
   recipients: string[];
   setRecipients: (r: string[]) => void;
+  alwaysEdit?: boolean;
 }) {
   const { t } = useI18n();
   const { requirePassword, changePassword } = usePasswords();
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(!!alwaysEdit);
   const [newEmail, setNewEmail] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -1182,7 +1257,7 @@ function RecipientsSection({
           {recipients.length}/5
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {editMode ? (
+          {alwaysEdit ? null : editMode ? (
             <>
               <Button
                 size="sm"
@@ -1299,14 +1374,12 @@ function OutletNamesEditor({
   setOutletNames: (n: Record<Outlet, string>) => void;
 }) {
   const { t } = useI18n();
-  const { requirePassword } = usePasswords();
   const [open, setOpen] = useState(false);
   const [ids, setIds] = useState<string[]>(outletIds);
   const [draft, setDraft] = useState<Record<Outlet, string>>(outletNames);
   const [newName, setNewName] = useState("");
 
   const start = () => {
-    if (!requirePassword("edit", "enterToEditOutlets")) return;
     setIds([...outletIds]);
     setDraft({ ...outletNames });
     setNewName("");

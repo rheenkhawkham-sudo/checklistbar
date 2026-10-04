@@ -32,6 +32,7 @@ interface Props {
   onChange: (tasks: Task[]) => void;
   variant?: "default" | "open" | "close";
   headerExtra?: React.ReactNode;
+  allowEdit?: boolean;
 }
 
 const VARIANT_CLASSES: Record<NonNullable<Props["variant"]>, string> = {
@@ -46,6 +47,7 @@ export function ChecklistSection({
   onChange,
   variant = "default",
   headerExtra,
+  allowEdit = false,
 }: Props) {
   const { t, tTask } = useI18n();
   const { requirePassword, changePassword } = usePasswords();
@@ -115,7 +117,7 @@ export function ChecklistSection({
           <span className="text-sm text-muted-foreground tabular-nums">
             {doneCount} / {tasks.length}
           </span>
-          {editMode ? (
+          {!allowEdit ? null : editMode ? (
             <>
               <Button
                 size="sm"
