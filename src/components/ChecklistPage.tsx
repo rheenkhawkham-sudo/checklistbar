@@ -1116,7 +1116,7 @@ export function ChecklistPage({ mode }: Props) {
                 </h2>
                 <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(false)}>
                   <X className="h-4 w-4 mr-1" />
-                  {t("close")}
+                  {t("done")}
                 </Button>
               </div>
 
